@@ -49,7 +49,7 @@ ROLES = [
     {
         "doctype": PROCESSOR_DOCTYPE,
         "role_name": ROLE_PROFILE.AUTO_PAYMENTS_MANAGER.value,
-        "permlevels": [PERMISSION_LEVEL.ZERO.value, PERMISSION_LEVEL.SEVEN.value],
+        "permlevels": PERMISSION_LEVEL.ZERO.value,
         "permissions": PERMISSIONS["Manager"],
     },
     ## Bank Account ##
