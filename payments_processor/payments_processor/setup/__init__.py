@@ -6,8 +6,6 @@ from frappe.core.page.permission_manager.permission_manager import (
 from frappe.permissions import add_permission, update_permission_property
 from frappe.utils import get_datetime
 
-################# SETUPS #################
-
 
 ### After Install Setup ###
 def make_roles_and_permissions(roles: list[dict]):

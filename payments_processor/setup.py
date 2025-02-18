@@ -1,12 +1,6 @@
 import click
 import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
-from payment_integration_utils.payment_integration_utils.utils import (
-    delete_custom_fields,
-    delete_property_setters,
-    delete_roles_and_permissions,
-    make_roles_and_permissions,
-)
 
 from payments_processor.payments_processor.constants.custom_fields import (
     CUSTOM_FIELDS,
@@ -15,6 +9,12 @@ from payments_processor.payments_processor.constants.property_setters import (
     PROPERTY_SETTERS,
 )
 from payments_processor.payments_processor.constants.roles import ROLES
+from payments_processor.payments_processor.setup import (
+    delete_custom_fields,
+    delete_property_setters,
+    delete_roles_and_permissions,
+    make_roles_and_permissions,
+)
 
 
 ################### After Install ###################
