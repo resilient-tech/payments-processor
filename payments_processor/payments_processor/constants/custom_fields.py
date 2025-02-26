@@ -36,4 +36,16 @@ CUSTOM_FIELDS = {
             "description": "Overriding the default payment threshold to submit payment entries. Set zero to use default threshold.",
         },
     ],
+    "Payment Entry": [
+        {
+            "fieldname": "is_auto_generated",
+            "label": "Is Auto Generated",
+            "fieldtype": "Check",
+            "insert_after": "online_payment_meta_data_section",  # TODO: remove from utils
+            "hidden": 1,
+            "print_hide": 1,
+            "permlevel": PERMISSION_LEVEL.SEVEN.value,
+            "no_copy": 1,
+        },
+    ],
 }

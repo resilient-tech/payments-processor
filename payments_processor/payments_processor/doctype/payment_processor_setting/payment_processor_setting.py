@@ -55,5 +55,7 @@ class PaymentProcessorSetting(Document):
 
         if not default_discount_account:
             frappe.throw(
-                _("Please set a default discount account in the company settings.")
+                _(
+                    "Please set a default payment discount account in the company settings."
+                )
             )

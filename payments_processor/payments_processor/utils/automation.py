@@ -1,87 +1,116 @@
-# TODO: create PE
-# TODO: Pay via RazorpayX on submit
-
 import frappe
-from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
+from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_summary import (
+    AccountsReceivableSummary,
+)
 from frappe.utils import today
 from pypika import Order
 
 
 def autocreate_payment_entry():
-    # get bank accounts with auto generate enabled and determine company from this
-    # get all purchase invoices with outstanding amount > 0
-    # group invoices by supplier and create a payment entry subject to a max of outstanding amount
-    # get suppliers without blocked auto payment
-    # get supplier outstanding amounts
+    auto_pay_settings = frappe.get_all("Auto Payment Settings", "*", {"disabled": 0})
+
+    for setting in auto_pay_settings:
+        invoices = PaymentsGenerator(setting).run()
+        # TODO: email to auto-payment manager
 
     # TODO: ERPNext PR for blocked invocie
-    pass
 
 
 # at the middle of the day
 def autosubmit_payment_entry():
-    settings = frappe._dict(
-        frappe.get_all(
-            "Auto Payment Settings",
-            filters={"disabled": 0, "auto_submit_entries": 1},
-            fields=["bank_account", "payment_threshold"],
-            as_list=True,
-        )
+    settings = frappe.get_all(
+        "Auto Payment Settings", "*", {"disabled": 0, "auto_submit_entries": 1}
     )
 
-    if not settings:
-        return
-
-    entries = frappe.get_all(
-        "Payment Entry",
-        filters={"docstatus": 0, "is_auto_generated": 1},
-        fields=["name", "bank_account", "paid_amount"],
-    )
-    # TODO: handle supplier config
-    frappe.flags.authenticated_by_cron_job = True
-
-    for entry in entries:
-        setting = settings.get(entry.bank_account)
-        if setting and entry.paid_amount > setting.payment_threshold:
-            continue
-
-        pe = frappe.get_doc("Payment Entry", entry.name)
-        pe.submit()
+    for setting in settings:
+        invoices = PaymentsSubmitter(setting).run()
+        # TODO: email to auto-payment manager
 
 
-# at the start of the day
-def determine_invoices_to_pay():
-    # return invoices with amount
-    # email to auto-payment manager
-    pass
+class BaseProcessor:
+    def is_supplier_disabled(self, supplier):
+        if not supplier.disabled:
+            return False
+
+        return {
+            "reason": "Supplier is disabled",
+            "reason_code": "1001",
+        }
+
+    def is_supplier_blocked(self, supplier):
+        if not supplier.on_hold:
+            return False
+
+        if supplier.hold_type not in ["All", "Payments"]:
+            return False
+
+        if supplier.release_date and supplier.release_date > today():
+            return False
+
+        return {
+            "reason": "Payments to supplier are blocked",
+            "reason_code": "1002",
+        }
 
 
-def create_payment_entry():
-    # pe.run_method("set_payment_information") in razorpayx
-    pass
-
-
-def process_payments():
-    auto_pay_settings = frappe.get_all("Auto Payment Settings", "*", {"disabled": 0})
-    for setting in auto_pay_settings:
-        PaymentsProcessor(setting)
-
-
-class PaymentsProcessor:
+class PaymentsGenerator(BaseProcessor):
     def __init__(self, setting):
         self.setting = setting
-        self.next_payment_date = "2025-01-31"  # TODO based on next payment date
+        self.next_payment_date = self.get_next_payment_date()
+        self.default_currency = frappe.get_cached_value(
+            "Company", setting.company, "default_currency"
+        )
 
+    def run(self):
+        """
+        example response:
+
+        {
+            "valid": {
+                "Supplier Name": [{
+                    "name": "PI-00001",
+                    "company": "Company Name",
+                    "supplier": "Supplier Name",
+                    "outstanding_amount": 1000,
+                    "amount_to_pay": 1000,
+                    ...
+                }],
+                ...
+            },
+            "invalid": {
+                "Supplier Name": [{
+                    "name": "PI-00001",
+                    "company": "Company Name",
+                    "supplier": "Supplier Name",
+                    "outstanding_amount": 1000,
+                    "reason": "Supplier not found",
+                    "reason_code": "1000",
+                    ...
+                }],
+                ...
+        }
+        """
         self.get_invoices()
         self.get_suppliers()
+        self.update_supplier_outstanding()
         self.process_invoices()
 
-        for supplier in self.suppliers.values():
-            if not supplier.invoices:
-                continue
+        for supplier_name, invoice_list in self.processed_invoices.get(
+            "valid", {}
+        ).values():
+            try:
+                pe = self.create_payment_entry(supplier_name, invoice_list)
+                pe.run_method("process_auto_generate", supplier_name, invoice_list)
+                pe.save()
 
-            for invoice_list in supplier.invoices.values():
-                self.make_payments(supplier, invoice_list)
+            except Exception as e:
+                self.handle_pe_creation_failed(supplier_name)
+                frappe.log_error(
+                    title=f"Error saving automated Payment Entry for supplier {supplier_name}",
+                    message=str(e),
+                )
+
+        return self.processed_invoices
 
     def get_invoices(self):
         """
@@ -117,6 +146,7 @@ class PaymentsProcessor:
             .on((doc.name == terms.parent) & (terms.parenttype == "Purchase Invoice"))
             .select(
                 doc.name,
+                doc.company,
                 doc.supplier,
                 doc.outstanding_amount,
                 doc.grand_total,
@@ -129,7 +159,6 @@ class PaymentsProcessor:
                 doc.hold_comment,
                 doc.release_date,
                 terms.due_date.as_("term_due_date"),
-                # TODO: check if this amount is correct
                 terms.outstanding.as_("term_outstanding_amount"),
                 terms.discount_date.as_("term_discount_date"),
                 terms.discount_type.as_("term_discount_type"),
@@ -189,11 +218,6 @@ class PaymentsProcessor:
             updated.total_outstanding_due += term_outstanding
             updated.setdefault("payment_terms", []).append(payment_term)
 
-        # self.processed_invoices = self.process_invoices()
-
-        # for fn in frappe.get_hooks("filter_auto_payment_invoices"):
-        #     frappe.get_attr(fn)(invoices=self.processed_invoices)
-
     def get_suppliers(self):
         suppliers = frappe.get_all(
             "Supplier",
@@ -211,6 +235,26 @@ class PaymentsProcessor:
         )
 
         self.suppliers = {supplier.name: supplier for supplier in suppliers}
+
+    def update_supplier_outstanding(self):
+        filters = frappe._dict(
+            {
+                "company": self.setting.company,
+                "show_future_payments": 1,
+            }
+        )
+
+        args = {
+            "account_type": "Payable",
+            "naming_by": ["Buying Settings", "supp_master_name"],
+        }
+
+        __, data = AccountsReceivableSummary(filters).run(args)
+
+        outstandings = {row.party: row.remaining_balance for row in data}
+
+        for supplier in self.suppliers.values():
+            supplier.remaining_balance = outstandings.get(supplier.name, 0)
 
     def process_invoices(self):
         self.processed_invoices = frappe._dict()
@@ -248,28 +292,76 @@ class PaymentsProcessor:
                 invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                 continue
 
+            if msg := self.is_payment_exceeding_supplier_outstanding(supplier, invoice):
+                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
+                continue
+
             # invoice validations
             if msg := self.is_invoice_blocked(invoice):
                 invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                 continue
 
-            valid.setdefault(invoice.supplier, []).append(invoice)
+            if msg := self.exclude_foreign_currency_invoices(invoice):
+                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
+                continue
 
-        # Exclude foreign currency invoices
-        # Use Early Payment Discount
-        # check payment terms for the complete invoice
+            functions = frappe.get_hooks("filter_auto_generate_payments")
+            for fn in functions:
+                if msg := frappe.get_attr(fn)(supplier, invoice):
+                    invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
+                    break
 
-        pass
+            else:
+                valid.setdefault(invoice.supplier, []).append(invoice)
+
+    def create_payment_entry(self, supplier_name, invoice_list):
+        pe = frappe.new_doc("Payment Entry")
+
+        paid_amount = 0
+        references = []
+
+        for invoice in invoice_list:
+            paid_amount += invoice.amount_to_pay
+            references.append(
+                {
+                    "reference_doctype": "Purchase Invoice",
+                    "reference_name": invoice.name,
+                    "bill_no": invoice.bill_no,
+                    "due_date": invoice.term_due_date,
+                    "total_amount": invoice.grand_total,
+                    "outstanding_amount": invoice.amount_to_pay,
+                    "allocated_amount": invoice.amount_to_pay,
+                }
+            )
+
+        pe.update(
+            {
+                "posting_date": today(),
+                "company": self.setting.company,
+                "bank_account": self.setting.bank_account,
+                "payment_type": "Pay",
+                "party_type": "Supplier",
+                "party": supplier_name,
+                "party_bank_account": self.get_party_bank_account(supplier_name),
+                "contact_person": self.get_contact_person(supplier_name),
+                "paid_from": self.get_paid_from(),
+                "paid_amount": paid_amount,
+                "references": references,
+                "reference_no": "-",
+                "reference_date": today(),
+                "is_auto_generated": 1,
+            }
+        )
+
+        return pe
+
+    ### Conditions ###
 
     def is_invoice_due(self, invoice):
         if invoice.is_return:
             return True
 
-        if (
-            self.setting.claim_early_payment_discount
-            and invoice.term_discount_date
-            and invoice.term_discount_date < self.next_payment_date
-        ):
+        if self.is_discount_applicable(invoice):
             return True
 
         if invoice.term_due_date and invoice.term_due_date < self.next_payment_date:
@@ -278,11 +370,7 @@ class PaymentsProcessor:
         return False
 
     def apply_discount(self, payment_term):
-        if not (
-            self.setting.claim_early_payment_discount
-            and payment_term.discount_date
-            and payment_term.discount_date < self.next_payment_date
-        ):
+        if not self.is_discount_applicable(payment_term):
             payment_term.discount_amount = 0
             return
 
@@ -292,30 +380,6 @@ class PaymentsProcessor:
             )
         else:
             payment_term.discount_amount = payment_term.discount
-
-    def is_supplier_disabled(self, supplier):
-        if not supplier.disabled:
-            return False
-
-        return {
-            "reason": "Supplier is disabled",
-            "reason_code": "1001",
-        }
-
-    def is_supplier_blocked(self, supplier):
-        if not supplier.on_hold:
-            return False
-
-        if supplier.hold_type not in ["All", "Payments"]:
-            return False
-
-        if supplier.release_date and supplier.release_date > today():
-            return False
-
-        return {
-            "reason": "Payments to supplier are blocked",
-            "reason_code": "1002",
-        }
 
     def is_auto_generate_disabled(self, supplier):
         if not supplier.disable_auto_generate_payment_entry:
@@ -348,6 +412,23 @@ class PaymentsProcessor:
             "reason_code": "1004",
         }
 
+    def is_payment_exceeding_supplier_outstanding(self, supplier, invoice):
+        if not self.setting.limit_payment_to_outstanding:
+            invoice.amount_to_pay = invoice.total_outstanding_due
+            return
+
+        if amount_to_pay := min(
+            invoice.total_outstanding_due, supplier.remaining_balance
+        ):
+            invoice.amount_to_pay = amount_to_pay
+            supplier.remaining_balance -= amount_to_pay
+            return
+
+        return {
+            "reason": "Supplier has no outstanding balance",
+            "reason_code": "1005",
+        }
+
     def is_invoice_blocked(self, invoice):
         if not invoice.on_hold:
             return False
@@ -360,106 +441,211 @@ class PaymentsProcessor:
             "reason_code": "2001",
         }
 
-    def exclude_foreign_currency_invoices(self):
-        pass
+    def exclude_foreign_currency_invoices(self, invoice):
+        if not self.setting.exclude_foreign_currency_invoices:
+            return
 
-    def make_payments(self, supplier, invoice_list):
-        self.draft_entry = self.autopay_entry = None
+        if invoice.currency == self.default_currency:
+            return
+
+        return {
+            "reason": "Foreign currency invoice",
+            "reason_code": "2002",
+        }
+
+    def handle_pe_creation_failed(self, supplier):
+        valid = self.processed_invoices.get("valid", frappe._dict())
+        invoice_list = valid.pop(supplier.name, [])
+
+        if not invoice_list:
+            return
 
         for invoice in invoice_list:
-            self.update_payment_entry(supplier, invoice)
+            invoice.update(
+                {
+                    "reason": "Payment Entry creation failed. Please check error logs.",
+                    "reason_code": "3001",
+                }
+            )
 
-        for entry_type in ("draft_entry", "autopay_entry"):
-            payment_entry = getattr(self, entry_type)
-            if not payment_entry:
-                continue
+        invalid = self.processed_invoices.setdefault("invalid", frappe._dict())
+        invalid.setdefault(supplier.name, []).extend(invoice_list)
 
-            # TODO: Not defined in implement `set_amounts`
-            # set_amounts(payment_entry)
-            try:
-                payment_entry.save()
-            except Exception:
-                frappe.db.rollback()
-                frappe.log_error(
-                    title="Error saving automated Payment Entry",
-                    message=frappe.get_traceback(),
-                )
+    #### UTILS ####
 
-            frappe.db.commit()
+    def is_discount_applicable(self, invoice):
+        return (
+            self.setting.claim_early_payment_discount
+            and invoice.term_discount_date
+            and invoice.term_discount_date < self.next_payment_date
+        )
 
-            if entry_type == "draft_entry":
-                continue
+    def get_next_payment_date(self):
+        # TODO: implement
+        return "2025-01-31"
 
-            try:
-                payment_entry.submit()
-            except Exception as e:
-                frappe.db.rollback()
-                frappe.log_error(
-                    title="Error submitting automated Payment Entry",
-                    message=frappe.get_traceback(),
-                )
-                payment_entry.db_set("error_message", repr(e))
+    def get_paid_from(self):
+        return frappe.get_cached_value(
+            "Bank Account", self.setting.bank_account, "account"
+        )
 
-            frappe.db.commit()
-
-    def update_payment_entry(self, supplier, invoice):
-        if self.can_autopay(supplier, invoice):
-            if not self.autopay_entry:
-                self.autopay_entry = self.create_payment_entry(supplier, invoice)
-                self.autopay_entry.pay_on_submit = 1
-                return
-
-            payment_entry = self.autopay_entry
-
-        else:
-            if not self.draft_entry and not self.get_existing_entry(supplier):
-                self.draft_entry = self.create_payment_entry(supplier, invoice)
-                return
-
-            payment_entry = self.draft_entry
-
-        payment_entry.append(
-            "references",
+    def get_party_bank_account(self, supplier_name):
+        return frappe.db.get_value(
+            "Bank Account",
             {
-                "reference_doctype": "Purchase Invoice",
-                "reference_name": invoice.name,
-                "bill_no": invoice.bill_no,
-                "due_date": invoice.due_date,
-                "total_amount": invoice.grand_total,
-                "outstanding_amount": invoice.outstanding_amount,
-                "allocated_amount": invoice.outstanding_amount,
+                "party_type": "Supplier",
+                "party": supplier_name,
+                "disabled": 0,
             },
+            order_by="is_default desc",
         )
 
-    def create_payment_entry(self, supplier, invoice):
-        email_id = frappe.db.get_value(
+    def get_contact_person(self, supplier_name):
+        contact = frappe.get_all(
             "Contact",
-            supplier.payment_notification_contact or invoice.contact_person,
-            "email_id",
+            {
+                "link_doctype": "Supplier",
+                "link_name": supplier_name,
+            },
+            pluck="name",
+            order_by="is_primary_contact desc",
+            limit=1,
         )
 
-        payment_entry = get_payment_entry("Purchase Invoice", invoice.name)
-        payment_entry.update(
+        return contact[0] if contact else None
+
+
+class PaymentsSubmitter(BaseProcessor):
+    def __init__(self, setting):
+        self.setting = setting
+
+    def run(self):
+        self.get_payment_entries()
+        self.get_suppliers()
+        self.process_payment_entries()
+
+        for supplier, entry in self.processed_entries.items():
+            try:
+                pe = frappe.get_doc("Payment Entry", entry.name)
+                pe.run_method("process_auto_submit", supplier, entry)
+                pe.submit()
+
+            except Exception as e:
+                self.handle_pe_submission_failed(supplier)
+                frappe.log_error(
+                    title=f"Error submitting automated Payment Entry for supplier {supplier}",
+                    message=str(e),
+                )
+
+    def get_payment_entries(self):
+        self.entries = frappe.get_all(
+            "Payment Entry",
+            filters={"docstatus": 0, "is_auto_generated": 1},
+            fields=["name", "party", "bank_account", "paid_amount"],
+        )
+
+    def get_suppliers(self):
+        suppliers = frappe.get_all(
+            "Supplier",
+            filters={
+                "name": ("in", {entry.party for entry in self.entries}),
+            },
+            fields=(
+                "name",
+                "disabled",
+                "on_hold",
+                "hold_type",
+                "release_date",
+                "disable_auto_submit_entries",
+                "payment_threshold",
+            ),
+        )
+
+        self.suppliers = {supplier.name: supplier for supplier in suppliers}
+
+    def process_payment_entries(self):
+        self.processed_entries = frappe._dict()
+
+        invalid = self.processed_entries.setdefault("invalid", frappe._dict())
+        valid = self.processed_entries.setdefault("valid", frappe._dict())
+
+        for entry in self.entries:
+            supplier = self.suppliers.get(entry.party)
+
+            # supplier validations
+            if not supplier:
+                invalid.setdefault(entry.party, []).append(
+                    {
+                        "name": entry.name,
+                        "reason": "Supplier not found",
+                        "reason_code": "1000",
+                    }
+                )
+                continue
+
+            if msg := self.is_supplier_disabled(supplier):
+                invalid[entry.party] = {**entry, **msg}
+                continue
+
+            if msg := self.is_supplier_blocked(supplier):
+                invalid[entry.party] = {**entry, **msg}
+                continue
+
+            if msg := self.is_auto_submit_disabled(supplier):
+                invalid[entry.party] = {**entry, **msg}
+                continue
+
+            if msg := self.is_threshold_exceeded(supplier, entry):
+                invalid[entry.party] = {**entry, **msg}
+                continue
+
+            functions = frappe.get_hooks("filter_auto_submit_payments")
+            for fn in functions:
+                if msg := frappe.get_attr(fn)(entry, supplier):
+                    invalid[entry.party] = {**entry, **msg}
+                    break
+
+            else:
+                valid[entry.party] = entry
+
+    ### Conditions ###
+
+    def is_auto_submit_disabled(self, supplier):
+        if not supplier.disable_auto_submit_entries:
+            return False
+
+        return {
+            "reason": "Auto submit payment entry is disabled for this supplier",
+            "reason_code": "1006",
+        }
+
+    def is_threshold_exceeded(self, supplier, entry):
+        threshold = supplier.payment_threshold or self.setting.payment_threshold
+
+        if not threshold:
+            return
+
+        if entry.paid_amount <= supplier.payment_threshold:
+            return
+
+        return {
+            "reason": "Payment threshold exceeded",
+            "reason_code": "1007",
+        }
+
+    def handle_pe_submission_failed(self, supplier):
+        valid = self.processed_entries.get("valid", frappe._dict())
+        entry = valid.pop(supplier, None)
+
+        if not entry:
+            return
+
+        entry.update(
             {
-                "mode_of_payment": supplier.default_payment_method,
-                "contact_person": supplier.payment_notification_contact
-                or invoice.contact_person,
-                "contact_email": email_id,
-                "reference_no": "-",
-                "reference_date": today(),
-                "paid_from": "",
+                "reason": "Payment Entry submission failed. Please check error logs.",
+                "reason_code": "3002",
             }
         )
 
-        company = self.companies[invoice.company]
-
-        if payment_entry.mode_of_payment == "ACH":
-            payment_entry.party_bank_account = supplier.default_ach_bank_account
-            payment_entry.bank_account = company.default_ach_bank_account
-        elif payment_entry.mode_of_payment == "Check":
-            payment_entry.bank_account = company.default_check_bank_account
-
-        if payment_entry.bank_account:
-            payment_entry.set_bank_account_data()
-
-        return payment_entry
+        invalid = self.processed_entries.setdefault("invalid", frappe._dict())
+        invalid[entry.party] = entry
