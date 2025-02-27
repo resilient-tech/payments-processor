@@ -17,10 +17,6 @@
   "column_break_cmbf",
   "auto_submit_entries",
   "payment_threshold",
-  "company_email_templates_section",
-  "auto_generate_report",
-  "column_break_bhwn",
-  "auto_submit_report",
   "days_sections",
   "automate_on_monday",
   "automate_on_friday",
@@ -38,7 +34,11 @@
   "column_break_eldq",
   "ignore_blocked_invoices",
   "exclude_foreign_currency_invoices",
-  "claim_early_payment_discount"
+  "claim_early_payment_discount",
+  "company_email_templates_section",
+  "auto_generate_report",
+  "column_break_bhwn",
+  "auto_submit_report"
  ],
  "fields": [
   {
@@ -150,12 +150,14 @@
    "fieldtype": "Column Break"
   },
   {
+   "depends_on": "eval: doc.bank_account",
    "fetch_from": "bank_account.company",
    "fieldname": "company",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Company",
+   "mandatory_depends_on": "eval: doc.bank_account",
    "no_copy": 1,
    "options": "Company",
    "read_only": 1,
@@ -246,7 +248,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-02-26 15:02:15.567658",
+ "modified": "2025-02-27 12:36:03.752330",
  "modified_by": "Administrator",
  "module": "Payments Processor",
  "name": "Payment Processor Setting",
@@ -278,7 +280,6 @@
    "write": 1
   }
  ],
- "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
