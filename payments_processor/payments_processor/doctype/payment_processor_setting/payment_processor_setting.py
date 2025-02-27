@@ -5,11 +5,6 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-# Auto Payment Setting
-# Payouts not required
-# validate one setting per company is enabled
-# Single
-
 
 class PaymentProcessorSetting(Document):
     # begin: auto-generated types
