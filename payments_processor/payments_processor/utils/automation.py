@@ -1,34 +1,19 @@
+from typing import Literal
+
 import frappe
 from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_summary import (
     AccountsReceivableSummary,
 )
+
+# from erpnext.buying.doctype.supplier.supplier import Supplier
 from frappe.utils import today
 from pypika import Order
 
-
-def autocreate_payment_entry():
-    auto_pay_settings = frappe.get_all("Auto Payment Settings", "*", {"disabled": 0})
-
-    for setting in auto_pay_settings:
-        invoices = PaymentsGenerator(setting).run()
-        # TODO: email to auto-payment manager
-
-    # TODO: ERPNext PR for blocked invocie
-
-
-# at the middle of the day
-def autosubmit_payment_entry():
-    settings = frappe.get_all(
-        "Auto Payment Settings", "*", {"disabled": 0, "auto_submit_entries": 1}
-    )
-
-    for setting in settings:
-        invoices = PaymentsSubmitter(setting).run()
-        # TODO: email to auto-payment manager
+# TODO: Release Date mandatory bug in ERPNext
 
 
 class BaseProcessor:
-    def is_supplier_disabled(self, supplier):
+    def is_supplier_disabled(self, supplier: dict) -> bool | dict:
         if not supplier.disabled:
             return False
 
@@ -37,14 +22,12 @@ class BaseProcessor:
             "reason_code": "1001",
         }
 
-    def is_supplier_blocked(self, supplier):
-        if not supplier.on_hold:
-            return False
-
-        if supplier.hold_type not in ["All", "Payments"]:
-            return False
-
-        if supplier.release_date and supplier.release_date > today():
+    def is_supplier_blocked(self, supplier: dict) -> bool | dict:
+        if (
+            not supplier.on_hold
+            or supplier.hold_type not in ["All", "Payments"]
+            or (supplier.release_date and supplier.release_date > today())
+        ):
             return False
 
         return {
@@ -54,14 +37,15 @@ class BaseProcessor:
 
 
 class PaymentsGenerator(BaseProcessor):
-    def __init__(self, setting):
+    def __init__(self, setting: dict):
         self.setting = setting
         self.next_payment_date = self.get_next_payment_date()
         self.default_currency = frappe.get_cached_value(
             "Company", setting.company, "default_currency"
         )
+        self.draft_payment_parties = None
 
-    def run(self):
+    def run(self) -> dict:
         """
         example response:
 
@@ -201,6 +185,7 @@ class PaymentsGenerator(BaseProcessor):
                 }
             )
 
+            # TODO: Ask @smit_vora
             updated = self.invoices.setdefault(
                 row.name, frappe._dict({**row, "total_outstanding_due": -paid_amount})
             )
@@ -262,6 +247,46 @@ class PaymentsGenerator(BaseProcessor):
         invalid = self.processed_invoices.setdefault("invalid", frappe._dict())
         valid = self.processed_invoices.setdefault("valid", frappe._dict())
 
+        def validate_conditions(
+            conditions: list,
+            supplier: dict,
+            invoice: dict,
+            check=Literal["supplier", "invoice", "both"],
+        ) -> bool:
+            is_valid = True
+
+            def check_condition(condition):
+                if check == "supplier":
+                    return condition(supplier)
+                elif check == "invoice":
+                    return condition(invoice)
+                else:
+                    return condition(supplier, invoice)
+
+            for condition in conditions:
+                if msg := check_condition(condition):
+                    invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
+                    is_valid = False
+                    break
+
+            return is_valid
+
+        supplier_conditions = [
+            self.is_supplier_disabled,
+            self.is_supplier_blocked,
+            self.is_auto_generate_disabled,
+            self.payment_entry_exists,
+        ]
+
+        supplier_invoices_conditions = [
+            self.is_payment_exceeding_supplier_outstanding,
+        ]
+
+        invoice_conditions = [
+            self.is_invoice_blocked,
+            self.exclude_foreign_currency_invoices,
+        ]
+
         for invoice in self.invoices.values():
             supplier = self.suppliers.get(invoice.supplier)
 
@@ -276,37 +301,17 @@ class PaymentsGenerator(BaseProcessor):
                 invalid.setdefault(invoice.supplier, []).append(_invoice)
                 continue
 
-            if msg := self.is_supplier_disabled(supplier):
-                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
+            # TODO: can be more refactor and make efficient
+            if not validate_conditions(supplier_conditions, supplier, invoice):
                 continue
 
-            if msg := self.is_supplier_blocked(supplier):
-                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
+            if not validate_conditions(supplier_invoices_conditions, supplier, invoice):
                 continue
 
-            if msg := self.is_auto_generate_disabled(supplier):
-                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
+            if not validate_conditions(invoice_conditions, supplier, invoice):
                 continue
 
-            if msg := self.payment_entry_exists(supplier):
-                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
-                continue
-
-            if msg := self.is_payment_exceeding_supplier_outstanding(supplier, invoice):
-                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
-                continue
-
-            # invoice validations
-            if msg := self.is_invoice_blocked(invoice):
-                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
-                continue
-
-            if msg := self.exclude_foreign_currency_invoices(invoice):
-                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
-                continue
-
-            functions = frappe.get_hooks("filter_auto_generate_payments")
-            for fn in functions:
+            for fn in frappe.get_hooks("filter_auto_generate_payments"):
                 if msg := frappe.get_attr(fn)(supplier, invoice):
                     invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                     break
@@ -381,7 +386,7 @@ class PaymentsGenerator(BaseProcessor):
         else:
             payment_term.discount_amount = payment_term.discount
 
-    def is_auto_generate_disabled(self, supplier):
+    def is_auto_generate_disabled(self, supplier: dict) -> bool | dict:
         if not supplier.disable_auto_generate_payment_entry:
             return False
 
@@ -390,7 +395,8 @@ class PaymentsGenerator(BaseProcessor):
             "reason_code": "1003",
         }
 
-    def payment_entry_exists(self, supplier):
+    def payment_entry_exists(self, supplier: dict) -> bool | dict:
+        # TODO: Ask @smit_vora (check `is_auto_generated` `self.draft_payment_parties` not define?)
         if self.draft_payment_parties is None:
             # TODO: Should we check if draft is for a specific invoice instead?
             self.draft_payment_parties = frappe.get_all(
@@ -412,28 +418,29 @@ class PaymentsGenerator(BaseProcessor):
             "reason_code": "1004",
         }
 
-    def is_payment_exceeding_supplier_outstanding(self, supplier, invoice):
+    def is_payment_exceeding_supplier_outstanding(
+        self, supplier: dict, invoice: dict
+    ) -> bool | dict:
         if not self.setting.limit_payment_to_outstanding:
             invoice.amount_to_pay = invoice.total_outstanding_due
-            return
+            return False
 
         if amount_to_pay := min(
             invoice.total_outstanding_due, supplier.remaining_balance
         ):
             invoice.amount_to_pay = amount_to_pay
             supplier.remaining_balance -= amount_to_pay
-            return
+            return False
 
         return {
             "reason": "Supplier has no outstanding balance",
             "reason_code": "1005",
         }
 
-    def is_invoice_blocked(self, invoice):
-        if not invoice.on_hold:
-            return False
-
-        if invoice.release_date and invoice.release_date > today():
+    def is_invoice_blocked(self, invoice: dict) -> bool | dict:
+        if not invoice.on_hold or (
+            invoice.release_date and invoice.release_date > today()
+        ):
             return False
 
         return {
@@ -441,12 +448,12 @@ class PaymentsGenerator(BaseProcessor):
             "reason_code": "2001",
         }
 
-    def exclude_foreign_currency_invoices(self, invoice):
-        if not self.setting.exclude_foreign_currency_invoices:
-            return
-
-        if invoice.currency == self.default_currency:
-            return
+    def exclude_foreign_currency_invoices(self, invoice: dict) -> bool | dict:
+        if (
+            not self.setting.exclude_foreign_currency_invoices
+            or invoice.currency == self.default_currency
+        ):
+            return False
 
         return {
             "reason": "Foreign currency invoice",
@@ -482,6 +489,7 @@ class PaymentsGenerator(BaseProcessor):
 
     def get_next_payment_date(self):
         # TODO: implement
+        # TODO: Ask @smit_vora
         return "2025-01-31"
 
     def get_paid_from(self):
@@ -649,3 +657,25 @@ class PaymentsSubmitter(BaseProcessor):
 
         invalid = self.processed_entries.setdefault("invalid", frappe._dict())
         invalid[entry.party] = entry
+
+
+### APIs ###
+def autocreate_payment_entry():
+    auto_pay_settings = frappe.get_all("Auto Payment Settings", "*", {"disabled": 0})
+
+    for setting in auto_pay_settings:
+        invoices = PaymentsGenerator(setting).run()
+        # TODO: email to auto-payment manager
+        print("Invoices: ", invoices)
+
+
+# at the middle of the day
+def autosubmit_payment_entry():
+    settings = frappe.get_all(
+        "Auto Payment Settings", "*", {"disabled": 0, "auto_submit_entries": 1}
+    )
+
+    for setting in settings:
+        invoices = PaymentsSubmitter(setting).run()
+        # TODO: email to auto-payment manager
+        print("Invoices: ", invoices)
