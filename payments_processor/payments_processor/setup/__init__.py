@@ -208,7 +208,7 @@ def delete_custom_fields(custom_fields: dict):
     for doctype, fields in custom_fields.items():
         fieldnames = []
 
-        if isinstance(fields, list) and fields:
+        if fields and isinstance(fields, list):
             if isinstance(fields[0], str):
                 fieldnames = fields
             elif isinstance(fields[0], dict):
