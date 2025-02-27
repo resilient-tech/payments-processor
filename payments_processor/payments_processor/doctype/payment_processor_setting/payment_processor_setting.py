@@ -38,19 +38,46 @@ class PaymentProcessorSetting(Document):
     # end: auto-generated types
 
     def validate(self):
-        self.validate_default_discount_account()
+        self.set_defaults()
 
-    def validate_default_discount_account(self):
-        if not self.claim_early_payment_discount:
+        if not self.auto_generate_entries:
+            self.auto_submit_entries = 0
             return
 
-        default_discount_account = frappe.get_cached_value(
+        self.validate_automation_days()
+        self.validate_default_discount_account()
+
+    def set_defaults(self):
+        self.ignore_blocked_suppliers = 1
+        self.ignore_blocked_invoices = 1
+
+    def validate_automation_days(self):
+        automation_days = [
+            self.automate_on_monday,
+            self.automate_on_tuesday,
+            self.automate_on_wednesday,
+            self.automate_on_thursday,
+            self.automate_on_friday,
+            self.automate_on_saturday,
+            self.automate_on_sunday,
+        ]
+
+        if not any(automation_days):
+            frappe.throw(
+                title=_("No Automation Days Selected"),
+                msg=_("Please select at least one day to enable automation."),
+            )
+
+    def validate_default_discount_account(self):
+        if self.claim_early_payment_discount and not self.get_discount_account():
+            frappe.throw(
+                title=_("Discount Account Missing"),
+                msg=_(
+                    "To claim an early payment discount, please set a default discount account in the Company settings."
+                ),
+            )
+
+    def get_discount_account(self):
+        return frappe.get_cached_value(
             "Company", self.company, "default_discount_account"
         )
-
-        if not default_discount_account:
-            frappe.throw(
-                _(
-                    "Please set a default payment discount account in the company settings."
-                )
-            )
