@@ -199,7 +199,8 @@
    "default": "1",
    "fieldname": "exclude_foreign_currency_invoices",
    "fieldtype": "Check",
-   "label": "Exclude Foreign Currency Invoices"
+   "label": "Exclude Foreign Currency Invoices",
+   "read_only": 1
   },
   {
    "default": "1",
@@ -254,7 +255,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-02-28 14:09:24.908949",
+ "modified": "2025-02-28 18:43:33.880099",
  "modified_by": "Administrator",
  "module": "Payments Processor",
  "name": "Payments Processor Configuration",

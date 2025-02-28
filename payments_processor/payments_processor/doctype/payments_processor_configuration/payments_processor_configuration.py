@@ -55,6 +55,9 @@ class PaymentsProcessorConfiguration(Document):
         self.ignore_blocked_suppliers = 1
         self.ignore_blocked_invoices = 1
 
+        # TODO: add support for multi-currency
+        self.exclude_foreign_currency_invoices = 1
+
     def validate_default_discount_account(self):
         if not self.claim_early_payment_discount:
             return
