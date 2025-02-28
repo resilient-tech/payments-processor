@@ -144,7 +144,7 @@ class PaymentsProcessor:
 
                     update_payment_info(invoice_group, pe)
 
-                except Exception as e:
+                except Exception:
                     self.handle_pe_creation_failed(supplier_name)
                     frappe.log_error(
                         title=f"Error saving automated payment entry for supplier {supplier_name}",
@@ -303,6 +303,9 @@ class PaymentsProcessor:
             supplier.remaining_balance = outstandings.get(supplier.name, 0)
 
     def process_auto_generate(self):
+        if not self.setting.auto_generate_entries:
+            return
+
         self.processed_invoices = frappe._dict()
         self.supplier_paid_amount = defaultdict(int)
 
@@ -346,7 +349,7 @@ class PaymentsProcessor:
             paid_amount = invoice.amount_to_pay - invoice.total_discount
 
             if not self.setting.group_payments_by_supplier and (
-                msg := self.is_auto_generate_threshold_exceeded(supplier, paid_amount)
+                msg := self.is_auto_generate_threshold_exceeded(paid_amount)
             ):
                 invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                 continue
@@ -379,27 +382,26 @@ class PaymentsProcessor:
         for supplier_name, paid_amount in self.supplier_paid_amount.items():
             supplier = self.suppliers[supplier_name]
 
-            if msg := self.is_auto_generate_threshold_exceeded(supplier, paid_amount):
+            if msg := self.is_auto_generate_threshold_exceeded(paid_amount):
                 for invoice in valid.pop(supplier_name):
                     invoice.update({**msg, "auto_generate": 0})
 
                 invalid.setdefault(supplier_name, []).extend(valid.pop(supplier_name))
 
     def process_auto_submit(self):
+        if not self.setting.auto_submit_entries:
+            return
+
         for supplier_name, invoice_list in self.processed_invoices.get(
             "valid", {}
         ).items():
 
             supplier = self.suppliers[supplier_name]
             for invoice in invoice_list:
-                if msg := self.is_auto_submit_disabled(supplier):
-                    invoice.update(msg)
-                    continue
-
                 paid_amount = invoice.amount_to_pay - invoice.total_discount
 
                 if not self.setting.group_payments_by_supplier and (
-                    msg := self.is_auto_submit_threshold_exceeded(supplier, paid_amount)
+                    msg := self.is_auto_submit_threshold_exceeded(paid_amount)
                 ):
                     invoice.update(msg)
                     continue
@@ -419,7 +421,7 @@ class PaymentsProcessor:
             # Grouped PE
             paid_amount = self.supplier_paid_amount[supplier_name]
 
-            if msg := self.is_auto_generate_threshold_exceeded(supplier, paid_amount):
+            if msg := self.is_auto_submit_threshold_exceeded(paid_amount):
                 for invoice in invoice_list:
                     invoice.update({**msg, "auto_submit": 0})
 
@@ -496,12 +498,9 @@ class PaymentsProcessor:
             )
             return True
 
-        offset = (
-            self.suppliers[invoice.supplier].due_date_offset
-            or self.setting.due_date_offset
+        new_due_date = invoice.term_due_date and add_days(
+            invoice.term_due_date, self.setting.due_date_offset
         )
-
-        new_due_date = invoice.term_due_date and add_days(invoice.term_due_date, offset)
 
         if new_due_date and new_due_date < self.next_payment_date:
             invoice.payment_date = self.get_previous_payment_date(new_due_date)
@@ -593,14 +592,11 @@ class PaymentsProcessor:
             "reason_code": "1005",
         }
 
-    def is_auto_generate_threshold_exceeded(self, supplier, paid_amount):
-        threshold = (
-            supplier.auto_generate_threshold or self.setting.auto_generate_threshold
-        )
-        if not threshold:
+    def is_auto_generate_threshold_exceeded(self, paid_amount):
+        if not self.setting.auto_generate_threshold:
             return
 
-        if paid_amount <= threshold:
+        if paid_amount <= self.setting.auto_generate_threshold:
             return
 
         return {
@@ -654,22 +650,11 @@ class PaymentsProcessor:
 
     ### Auto Submit Conditions ###
 
-    def is_auto_submit_disabled(self, supplier):
-        if not supplier.disable_auto_submit_entries:
-            return False
-
-        return {
-            "reason": "Auto submit payment entry is disabled for this supplier",
-            "reason_code": "1007",
-        }
-
-    def is_auto_submit_threshold_exceeded(self, supplier, paid_amount):
-        threshold = supplier.auto_submit_threshold or self.setting.auto_submit_threshold
-
-        if not threshold:
+    def is_auto_submit_threshold_exceeded(self, paid_amount):
+        if not self.setting.auto_submit_threshold:
             return
 
-        if paid_amount <= threshold:
+        if paid_amount <= self.setting.auto_submit_threshold:
             return
 
         return {
