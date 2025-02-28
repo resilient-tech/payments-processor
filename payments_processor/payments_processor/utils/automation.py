@@ -1,5 +1,6 @@
 import calendar
 from collections import defaultdict
+from functools import cached_property
 
 import frappe
 from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_summary import (
@@ -15,6 +16,19 @@ from payments_processor.constants import CONFIGURATION_DOCTYPE
 from payments_processor.payments_processor.constants.roles import ROLE_PROFILE
 
 DAY_NAMES = list(calendar.day_name)
+ERRORS = {
+    "1000": "Supplier not found",
+    "1001": "Supplier is disabled",
+    "1002": "Payments to supplier are blocked",
+    "1003": "Auto generate payment entry is disabled for this supplier",
+    "1004": "Draft payment entry already exists for this supplier",
+    "1005": "Supplier has no outstanding balance",
+    "1006": "Payment generation threshold exceeded",
+    "1021": "Payment submission threshold exceeded",
+    "2001": "Payment for this invoice is blocked",
+    "2002": "Foreign currency invoice",
+    "3001": "Payment Entry creation failed. Please check error logs.",
+}
 
 
 def autocreate_payment_entry():
@@ -214,6 +228,7 @@ class PaymentsProcessor:
             if not self.is_invoice_due(row):
                 continue
 
+            # TODO: use flt where necessary
             invoice_total = row.rounded_total or row.grand_total
             paid_amount = invoice_total - row.outstanding_amount
 
@@ -305,13 +320,9 @@ class PaymentsProcessor:
 
             # supplier validations
             if not supplier:
-                _invoice = {
-                    **invoice,
-                    "reason": "Supplier not found",
-                    "reason_code": "1000",
-                }
-
-                invalid.setdefault(invoice.supplier, []).append(_invoice)
+                invalid.setdefault(invoice.supplier, []).append(
+                    {**invoice, **self.get_error_msg("1000")}
+                )
                 continue
 
             if msg := self.is_supplier_disabled(supplier):
@@ -446,7 +457,7 @@ class PaymentsProcessor:
                 "party": supplier_name,
                 "party_bank_account": self.get_party_bank_account(supplier_name),
                 "contact_person": self.get_contact_person(supplier_name),
-                "paid_from": self.get_paid_from(),
+                "paid_from": self.paid_from,
                 "paid_amount": paid_amount,
                 "received_amount": paid_amount,
                 "references": references,
@@ -512,10 +523,7 @@ class PaymentsProcessor:
         if not supplier.disabled:
             return False
 
-        return {
-            "reason": "Supplier is disabled",
-            "reason_code": "1001",
-        }
+        return self.get_error_msg("1001")
 
     def is_supplier_blocked(self, supplier):
         if not supplier.on_hold:
@@ -527,19 +535,13 @@ class PaymentsProcessor:
         if supplier.release_date and supplier.release_date > self.today:
             return False
 
-        return {
-            "reason": "Payments to supplier are blocked",
-            "reason_code": "1002",
-        }
+        return self.get_error_msg("1002")
 
     def is_auto_generate_disabled(self, supplier):
         if not supplier.disable_auto_generate_payment_entry:
             return False
 
-        return {
-            "reason": "Auto generate payment entry is disabled for this supplier",
-            "reason_code": "1003",
-        }
+        return self.get_error_msg("1003")
 
     def payment_entry_exists(self, supplier):
         if getattr(self, "draft_payment_parties", None) is None:
@@ -558,10 +560,7 @@ class PaymentsProcessor:
         if supplier.name not in self.draft_payment_parties:
             return False
 
-        return {
-            "reason": "Draft payment entry already exists for this supplier",
-            "reason_code": "1004",
-        }
+        return self.get_error_msg("1004")
 
     def is_payment_exceeding_supplier_outstanding(self, supplier, invoice):
         if not self.setting.limit_payment_to_outstanding:
@@ -575,10 +574,7 @@ class PaymentsProcessor:
             supplier.remaining_balance -= amount_to_pay
             return
 
-        return {
-            "reason": "Supplier has no outstanding balance",
-            "reason_code": "1005",
-        }
+        return self.get_error_msg("1005")
 
     def is_auto_generate_threshold_exceeded(self, paid_amount):
         if not self.setting.auto_generate_threshold:
@@ -587,10 +583,7 @@ class PaymentsProcessor:
         if paid_amount <= self.setting.auto_generate_threshold:
             return
 
-        return {
-            "reason": "Payment generation threshold exceeded",
-            "reason_code": "1006",
-        }
+        return self.get_error_msg("1006")
 
     def is_invoice_blocked(self, invoice):
         if not invoice.on_hold:
@@ -599,10 +592,7 @@ class PaymentsProcessor:
         if invoice.release_date and invoice.release_date > self.today:
             return False
 
-        return {
-            "reason": "Payment for this invoice is blocked",
-            "reason_code": "2001",
-        }
+        return self.get_error_msg("2001")
 
     def exclude_foreign_currency_invoices(self, invoice):
         if not self.setting.exclude_foreign_currency_invoices:
@@ -611,10 +601,7 @@ class PaymentsProcessor:
         if invoice.currency == self.default_currency:
             return
 
-        return {
-            "reason": "Foreign currency invoice",
-            "reason_code": "2002",
-        }
+        return self.get_error_msg("2002")
 
     def handle_pe_creation_failed(self, supplier_name):
         valid = self.processed_invoices.get("valid", frappe._dict())
@@ -624,12 +611,7 @@ class PaymentsProcessor:
             return
 
         for invoice in invoice_list:
-            invoice.update(
-                {
-                    "reason": "Payment Entry creation failed. Please check error logs.",
-                    "reason_code": "3001",
-                }
-            )
+            invoice.update(self.get_error_msg("3001"))
 
         invalid = self.processed_invoices.setdefault("invalid", frappe._dict())
         invalid.setdefault(supplier_name, []).extend(invoice_list)
@@ -645,10 +627,7 @@ class PaymentsProcessor:
         if paid_amount <= self.setting.auto_submit_threshold:
             return
 
-        return {
-            "reason": "Payment submission threshold exceeded",
-            "reason_code": "1008",
-        }
+        return self.get_error_msg("1021")
 
     #### UTILS ####
 
@@ -683,10 +662,9 @@ class PaymentsProcessor:
 
                 return previous_date
 
-    def get_paid_from(self):
-        return frappe.get_cached_value(
-            "Bank Account", self.setting.bank_account, "account"
-        )
+    @cached_property
+    def paid_from(self):
+        return frappe.db.get_value("Bank Account", self.setting.bank_account, "account")
 
     def get_party_bank_account(self, supplier_name):
         if not getattr(self, "party_bank_accounts", None):
@@ -726,6 +704,9 @@ class PaymentsProcessor:
             )
 
         return self.party_contacts.get(supplier_name)
+
+    def get_error_msg(self, code):
+        return {"reason": ERRORS.get(code), "reason_code": code}
 
 
 ## Utils
