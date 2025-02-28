@@ -43,7 +43,17 @@ class PaymentsProcessorConfiguration(Document):
     # end: auto-generated types
 
     def validate(self):
+        self.set_defaults()
+        if not self.auto_generate_entries:
+            self.auto_submit_entries = 0
+            return
+
         self.validate_default_discount_account()
+        self.validate_automation_days()
+
+    def set_defaults(self):
+        self.ignore_blocked_suppliers = 1
+        self.ignore_blocked_invoices = 1
 
     def validate_default_discount_account(self):
         if not self.claim_early_payment_discount:
@@ -58,4 +68,21 @@ class PaymentsProcessorConfiguration(Document):
                 _(
                     "Please set a default payment discount account in the company settings."
                 )
+            )
+
+    def validate_automation_days(self):
+        automation_days = [
+            self.automate_on_monday,
+            self.automate_on_tuesday,
+            self.automate_on_wednesday,
+            self.automate_on_thursday,
+            self.automate_on_friday,
+            self.automate_on_saturday,
+            self.automate_on_sunday,
+        ]
+
+        if not any(automation_days):
+            frappe.throw(
+                title=_("No Automation Days Selected"),
+                msg=_("Please select at least one day to enable automation."),
             )
