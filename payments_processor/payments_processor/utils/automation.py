@@ -138,13 +138,13 @@ class PaymentsProcessor:
         if not (email_template := self.setting.email_template):
             return
 
+        if not (email_to := self.setting.email_to):
+            return
+
         self.processed_invoices.company = self.setting.company
 
         message = get_email_template(email_template, self.processed_invoices)
-
-        recipients = get_info_based_on_role(
-            ROLE_PROFILE.AUTO_PAYMENTS_MANAGER.value, "email"
-        )
+        recipients = get_info_based_on_role(email_to, "email")
 
         frappe.sendmail(
             recipients=recipients,

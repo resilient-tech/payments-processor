@@ -16,10 +16,13 @@
   "auto_generate_entries",
   "auto_generate_threshold",
   "due_date_offset",
-  "email_template",
   "column_break_cmbf",
   "auto_submit_entries",
   "auto_submit_threshold",
+  "section_break_rymn",
+  "email_template",
+  "column_break_qtne",
+  "email_to",
   "days_sections",
   "automate_on_monday",
   "automate_on_friday",
@@ -212,6 +215,7 @@
   {
    "fieldname": "automations_section",
    "fieldtype": "Section Break",
+   "hide_border": 1,
    "label": "Automations"
   },
   {
@@ -251,11 +255,26 @@
    "fieldtype": "Link",
    "label": "Email Template",
    "options": "Email Template"
+  },
+  {
+   "fieldname": "section_break_rymn",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_qtne",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Email notification will be sent to all users with this role",
+   "fieldname": "email_to",
+   "fieldtype": "Link",
+   "label": "Email To",
+   "options": "Role"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-02-28 18:43:33.880099",
+ "modified": "2025-02-28 19:52:59.516073",
  "modified_by": "Administrator",
  "module": "Payments Processor",
  "name": "Payments Processor Configuration",
