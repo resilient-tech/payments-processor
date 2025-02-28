@@ -115,9 +115,9 @@ class PaymentsProcessor:
         self.process_auto_generate()
         self.process_auto_submit()
 
-        for supplier_name, supplier_invoices in self.processed_invoices.get(
-            "valid", {}
-        ).items():
+        for supplier_name, supplier_invoices in (
+            self.processed_invoices.get("valid", {}).copy().items()
+        ):
 
             def get_invoice_group(invoice_group):
                 if self.setting.group_payments_by_supplier:
@@ -147,8 +147,8 @@ class PaymentsProcessor:
                 except Exception as e:
                     self.handle_pe_creation_failed(supplier_name)
                     frappe.log_error(
-                        title=f"Error saving automated Payment Entry for supplier {supplier_name}",
-                        message=str(e),
+                        title=f"Error saving automated payment entry for supplier {supplier_name}",
+                        message=frappe.get_traceback(),
                     )
 
         return self.processed_invoices
@@ -458,6 +458,7 @@ class PaymentsProcessor:
                 "contact_person": self.get_contact_person(supplier_name),
                 "paid_from": self.get_paid_from(),
                 "paid_amount": paid_amount,
+                "received_amount": paid_amount,
                 "references": references,
                 "reference_no": "-",
                 "reference_date": getdate(),
@@ -631,9 +632,9 @@ class PaymentsProcessor:
             "reason_code": "2002",
         }
 
-    def handle_pe_creation_failed(self, supplier):
+    def handle_pe_creation_failed(self, supplier_name):
         valid = self.processed_invoices.get("valid", frappe._dict())
-        invoice_list = valid.pop(supplier.name, [])
+        invoice_list = valid.pop(supplier_name, [])
 
         if not invoice_list:
             return
@@ -647,7 +648,7 @@ class PaymentsProcessor:
             )
 
         invalid = self.processed_invoices.setdefault("invalid", frappe._dict())
-        invalid.setdefault(supplier.name, []).extend(invoice_list)
+        invalid.setdefault(supplier_name, []).extend(invoice_list)
 
         ### Conditions ###
 
@@ -775,7 +776,7 @@ class PaymentsProcessor:
                         "link_doctype": "Supplier",
                         "link_name": ("in", suppliers),
                     },
-                    fields=["link_name", "name"],
+                    fields=["`tabDynamic Link`.link_name", "name"],
                     order_by="is_primary_contact",
                     as_list=True,
                 )

@@ -1,4 +1,6 @@
 import frappe
+from frappe.core.doctype.role.role import get_info_based_on_role
+from frappe.email.doctype.email_template.email_template import get_email_template
 from frappe.utils import getdate
 
 from payments_processor.constants import PROCESSOR_DOCTYPE
@@ -19,6 +21,19 @@ def autocreate_payment_entry():
             continue
 
         invoices = PaymentsProcessor(setting).create_payments()
-        # TODO: email to auto-payment manager
 
-    # TODO: ERPNext PR for blocked invocie
+        if not setting.email_template:
+            continue
+
+        invoices.company = setting.company
+
+        message = get_email_template(setting.email_template, invoices)
+
+        # get all users with role Auto Payments Manager
+        recipients = get_info_based_on_role("Auto Payments Manager", "email")
+
+        frappe.sendmail(
+            recipients=recipients,
+            subject=message.get("subject"),
+            message=message.get("message"),
+        )

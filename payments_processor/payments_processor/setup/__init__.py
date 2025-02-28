@@ -170,6 +170,25 @@ def make_workflow_actions(actions: list[str]):
     )
 
 
+def make_email_templates(email_templates: list[dict]):
+    """
+    Create email templates.
+
+    :param email_templates: List of email templates.
+
+    Note: Duplicate email templates will be skipped.
+    """
+    for email_template in email_templates:
+        if frappe.db.exists("Email Template", email_template["name"]):
+            doc = frappe.get_doc("Email Template", email_template.pop("name"))
+
+        else:
+            doc = frappe.new_doc("Email Template")
+
+        doc.update(email_template)
+        doc.save()
+
+
 ### Before Uninstall Setup ###
 def delete_custom_fields(custom_fields: dict):
     """
