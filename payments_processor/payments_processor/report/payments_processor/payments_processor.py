@@ -1,65 +1,77 @@
+# Copyright (c) 2025, Resilient Tech and contributors
+# For license information, please see license.txt
+
 import frappe
 from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_summary import (
     AccountsReceivableSummary,
 )
-from frappe.utils import today, add_days
+from frappe import _
+from frappe.utils import add_days, getdate
 from pypika import Order
 
 
-def autocreate_payment_entry():
-    auto_pay_settings = frappe.get_all("Auto Payment Settings", "*", {"disabled": 0})
+def execute(filters: dict | None = None):
 
-    for setting in auto_pay_settings:
-        invoices = PaymentsGenerator(setting).run()
-        # TODO: email to auto-payment manager
+    columns = get_columns()
+    data = get_data()
 
-    # TODO: ERPNext PR for blocked invocie
+    return columns, data
 
 
-# at the middle of the day
-def autosubmit_payment_entry():
-    settings = frappe.get_all(
-        "Auto Payment Settings", "*", {"disabled": 0, "auto_submit_entries": 1}
-    )
+def get_columns() -> list[dict]:
+    """Return columns for the report.
 
-    for setting in settings:
-        invoices = PaymentsSubmitter(setting).run()
-        # TODO: email to auto-payment manager
+    One field definition per column, just like a DocType field definition.
+    """
+    return [
+        {
+            "label": _("Supplier"),
+            "fieldname": "supplier",
+            "fieldtype": "Link",
+            "options": "Supplier",
+        },
+        {
+            "label": _("Purchase Invoice"),
+            "fieldname": "column_2",
+            "fieldtype": "Int",
+        },
+    ]
 
 
-class BaseProcessor:
-    def is_supplier_disabled(self, supplier):
-        if not supplier.disabled:
-            return False
+def get_data() -> list[list]:
+    """Return data for the report.
 
-        return {
-            "reason": "Supplier is disabled",
-            "reason_code": "1001",
-        }
-
-    def is_supplier_blocked(self, supplier):
-        if not supplier.on_hold:
-            return False
-
-        if supplier.hold_type not in ["All", "Payments"]:
-            return False
-
-        if supplier.release_date and supplier.release_date > today():
-            return False
-
-        return {
-            "reason": "Payments to supplier are blocked",
-            "reason_code": "1002",
-        }
+    The report data is a list of rows, with each row being a list of cell values.
+    """
+    return [
+        ["Row 1", 1],
+        ["Row 2", 2],
+    ]
 
 
 # TODO: different payable account used in purchase invoice
 # TODO: How do we handle other entries from the Journal Entry?
 
+weekdays = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+]
 
-class PaymentsGenerator(BaseProcessor):
-    def __init__(self, setting):
+
+class PaymentsGenerator:
+    def __init__(self, setting, filters=None):
         self.setting = setting
+        self.filters = filters or frappe._dict()
+
+        self.automation_days = [
+            day for day in weekdays if self.setting.get(f"automate_on_{day}")
+        ]
+
         self.next_payment_date = self.get_next_payment_date()
 
         company = frappe.get_cached_doc("Company", setting.company)
@@ -98,7 +110,7 @@ class PaymentsGenerator(BaseProcessor):
         self.get_suppliers()
         self.get_invoices()
         self.update_supplier_outstanding()
-        self.process_invoices()
+        self.process_auto_generate()
 
         for supplier_name, invoice_list in self.processed_invoices.get(
             "valid", {}
@@ -260,7 +272,7 @@ class PaymentsGenerator(BaseProcessor):
         for supplier in self.suppliers.values():
             supplier.remaining_balance = outstandings.get(supplier.name, 0)
 
-    def process_invoices(self):
+    def process_auto_generate(self):
         self.processed_invoices = frappe._dict()
 
         invalid = self.processed_invoices.setdefault("invalid", frappe._dict())
@@ -316,7 +328,25 @@ class PaymentsGenerator(BaseProcessor):
                     break
 
             else:
-                valid.setdefault(invoice.supplier, []).append(invoice)
+                valid.setdefault(invoice.supplier, []).append(
+                    {**invoice, "auto_generate": 1}
+                )
+
+    def process_auto_submit(self):
+        for invoice_list in self.processed_invoices.get("valid", {}).values():
+            for invoice in invoice_list:
+                supplier = self.suppliers[invoice.supplier]
+
+                if msg := self.is_auto_submit_disabled(supplier):
+                    invoice.update(msg)
+                    continue
+
+    def compile_payment_entries(self):
+        paid_amount = 0
+        discount_amount = 0
+        references = []
+
+        pass
 
     def create_payment_entry(self, supplier_name, invoice_list):
         pe = frappe.new_doc("Payment Entry")
@@ -343,7 +373,7 @@ class PaymentsGenerator(BaseProcessor):
 
         pe.update(
             {
-                "posting_date": today(),
+                "posting_date": getdate(),
                 "company": self.setting.company,
                 "bank_account": self.setting.bank_account,
                 "payment_type": "Pay",
@@ -355,7 +385,7 @@ class PaymentsGenerator(BaseProcessor):
                 "paid_amount": paid_amount,
                 "references": references,
                 "reference_no": "-",
-                "reference_date": today(),
+                "reference_date": getdate(),
                 "is_auto_generated": 1,
             }
         )
@@ -377,13 +407,17 @@ class PaymentsGenerator(BaseProcessor):
 
         return pe
 
-    ### Conditions ###
+    ### Auto Generate Conditions ###
 
     def is_invoice_due(self, invoice):
         if invoice.is_return:
+            invoice.payment_date = getdate()
             return True
 
         if self.is_discount_applicable(invoice):
+            invoice.payment_date = self.get_previous_payment_date(
+                invoice.term_discount_date
+            )
             return True
 
         offset = (
@@ -391,10 +425,10 @@ class PaymentsGenerator(BaseProcessor):
             or self.setting.due_date_offset
         )
 
-        if (
-            invoice.term_due_date
-            and add_days(invoice.term_due_date, offset) < self.next_payment_date
-        ):
+        new_due_date = invoice.term_due_date or add_days(invoice.term_due_date, offset)
+
+        if new_due_date and new_due_date < self.next_payment_date:
+            invoice.payment_date = self.get_previous_payment_date(new_due_date)
             return True
 
         return False
@@ -411,6 +445,30 @@ class PaymentsGenerator(BaseProcessor):
         else:
             payment_term.discount_amount = payment_term.discount
 
+    def is_supplier_disabled(self, supplier):
+        if not supplier.disabled:
+            return False
+
+        return {
+            "reason": "Supplier is disabled",
+            "reason_code": "1001",
+        }
+
+    def is_supplier_blocked(self, supplier):
+        if not supplier.on_hold:
+            return False
+
+        if supplier.hold_type not in ["All", "Payments"]:
+            return False
+
+        if supplier.release_date and supplier.release_date > getdate():
+            return False
+
+        return {
+            "reason": "Payments to supplier are blocked",
+            "reason_code": "1002",
+        }
+
     def is_auto_generate_disabled(self, supplier):
         if not supplier.disable_auto_generate_payment_entry:
             return False
@@ -418,6 +476,21 @@ class PaymentsGenerator(BaseProcessor):
         return {
             "reason": "Auto generate payment entry is disabled for this supplier",
             "reason_code": "1003",
+        }
+
+    def is_auto_generate_threshold_exceeded(self, supplier, entry):
+        threshold = (
+            supplier.auto_generate_threshold or self.setting.auto_generate_threshold
+        )
+        if not threshold:
+            return
+
+        if entry.paid_amount <= threshold:
+            return
+
+        return {
+            "reason": "Payment threshold exceeded",
+            "reason_code": "1007",
         }
 
     def payment_entry_exists(self, supplier):
@@ -463,7 +536,7 @@ class PaymentsGenerator(BaseProcessor):
         if not invoice.on_hold:
             return False
 
-        if invoice.release_date and invoice.release_date > today():
+        if invoice.release_date and invoice.release_date > getdate():
             return False
 
         return {
@@ -501,6 +574,50 @@ class PaymentsGenerator(BaseProcessor):
         invalid = self.processed_invoices.setdefault("invalid", frappe._dict())
         invalid.setdefault(supplier.name, []).extend(invoice_list)
 
+        ### Conditions ###
+
+    ### Auto Submit Conditions ###
+
+    def is_auto_submit_disabled(self, supplier):
+        if not supplier.disable_auto_submit_entries:
+            return False
+
+        return {
+            "reason": "Auto submit payment entry is disabled for this supplier",
+            "reason_code": "1006",
+        }
+
+    def is_auto_submit_threshold_exceeded(self, supplier, entry):
+        threshold = supplier.auto_submit_threshold or self.setting.auto_submit_threshold
+
+        if not threshold:
+            return
+
+        if entry.paid_amount <= supplier.auto_submit_threshold:
+            return
+
+        return {
+            "reason": "Payment threshold exceeded",
+            "reason_code": "1007",
+        }
+
+    def handle_pe_submission_failed(self, supplier):
+        valid = self.processed_entries.get("valid", frappe._dict())
+        entry = valid.pop(supplier, None)
+
+        if not entry:
+            return
+
+        entry.update(
+            {
+                "reason": "Payment Entry submission failed. Please check error logs.",
+                "reason_code": "3002",
+            }
+        )
+
+        invalid = self.processed_entries.setdefault("invalid", frappe._dict())
+        invalid[entry.party] = entry
+
     #### UTILS ####
 
     def is_discount_applicable(self, invoice):
@@ -511,8 +628,41 @@ class PaymentsGenerator(BaseProcessor):
         )
 
     def get_next_payment_date(self):
-        # TODO: implement
-        return "2025-01-31"
+        if self.filters.payment_date:
+            return self.filters.payment_date
+
+        if not self.automation_days:
+            return add_days(getdate(), 1)
+
+        today_index = weekdays.index(getdate().strftime("%A").lower())
+
+        for i in range(1, 8):
+            next_day = weekdays[(today_index + i) % 7]
+            if next_day in self.automation_days:
+                return add_days(getdate(), i)
+
+        return add_days(getdate(), 1)
+
+    def get_previous_payment_date(self, due_date):
+        today = getdate()
+        default_date = today if due_date < today else due_date
+
+        if not self.automation_days:
+            return default_date
+
+        due_date_index = weekdays.index(due_date.strftime("%A").lower())
+
+        for i in range(1, 8):
+            previous_day = weekdays[(due_date_index - i) % 7]
+            if previous_day in self.automation_days:
+                # subject to max of today
+                previous_date = add_days(due_date, -i)
+                if previous_date < today:
+                    return today
+
+                return previous_date
+
+        return default_date
 
     def get_paid_from(self):
         return frappe.get_cached_value(
@@ -545,7 +695,7 @@ class PaymentsGenerator(BaseProcessor):
         return contact[0] if contact else None
 
 
-class PaymentsSubmitter(BaseProcessor):
+class PaymentsSubmitter:
     def __init__(self, setting):
         self.setting = setting
 
