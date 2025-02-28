@@ -1,7 +1,7 @@
 // Copyright (c) 2024, Resilient Tech and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on("Payment Processor Setting", {
+frappe.ui.form.on("Payments Processor Configuration", {
 	setup: function (frm) {
 		frm.set_query("bank_account", function () {
 			return {

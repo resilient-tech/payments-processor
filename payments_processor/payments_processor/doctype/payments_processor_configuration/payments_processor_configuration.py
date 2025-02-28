@@ -11,7 +11,7 @@ from frappe.model.document import Document
 # Single
 
 
-class PaymentProcessorSetting(Document):
+class PaymentsProcessorConfiguration(Document):
     # begin: auto-generated types
     # This code is auto-generated. Do not modify anything in this block.
 

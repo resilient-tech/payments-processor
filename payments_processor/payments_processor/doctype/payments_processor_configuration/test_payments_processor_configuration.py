@@ -5,5 +5,5 @@
 from frappe.tests.utils import FrappeTestCase
 
 
-class TestPaymentProcessorSetting(FrappeTestCase):
+class TestPaymentsProcessorConfiguration(FrappeTestCase):
     pass

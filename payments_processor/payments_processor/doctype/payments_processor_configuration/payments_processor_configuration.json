@@ -249,7 +249,7 @@
  "modified": "2025-02-26 15:02:15.567658",
  "modified_by": "Administrator",
  "module": "Payments Processor",
- "name": "Payment Processor Setting",
+ "name": "Payments Processor Configuration",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
