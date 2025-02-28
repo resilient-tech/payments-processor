@@ -48,7 +48,7 @@ def get_data() -> list[list]:
 
     for setting in auto_pay_settings:
         processor = PaymentsProcessor(setting, filters)
-        print(processor.show_payments())
+        print(processor.process_invoices())
 
 
 # TODO: different payable account used in purchase invoice

@@ -12,6 +12,7 @@ from frappe.utils import add_days, getdate
 from pypika import Order
 
 from payments_processor.constants import CONFIGURATION_DOCTYPE
+from payments_processor.payments_processor.constants.roles import ROLE_PROFILE
 
 DAY_NAMES = list(calendar.day_name)
 
@@ -20,29 +21,7 @@ def autocreate_payment_entry():
     auto_pay_settings = frappe.get_all(CONFIGURATION_DOCTYPE, "*", {"disabled": 0})
 
     for setting in auto_pay_settings:
-        automation_days = get_automation_days(setting)
-        week_day = getdate().strftime("%A").lower()
-
-        if week_day not in automation_days:
-            continue
-
-        invoices = PaymentsProcessor(setting).create_payments()
-
-        if not setting.email_template:
-            continue
-
-        invoices.company = setting.company
-
-        message = get_email_template(setting.email_template, invoices)
-
-        # get all users with role Auto Payments Manager
-        recipients = get_info_based_on_role("Auto Payments Manager", "email")
-
-        frappe.sendmail(
-            recipients=recipients,
-            subject=message.get("subject"),
-            message=message.get("message"),
-        )
+        PaymentsProcessor(setting).create_payments()
 
 
 class PaymentsProcessor:
@@ -58,9 +37,18 @@ class PaymentsProcessor:
         self.default_currency = company.default_currency
         self.discount_account = company.default_discount_account
 
-    def show_payments(self):
-        self.get_suppliers()
+    def run(self):
+        week_day = self.today.strftime("%A")
+        if week_day not in self.automation_days:
+            return
+
+        self.process_invoices()
+        self.create_payments()
+        self.notify_users()
+
+    def process_invoices(self):
         self.get_invoices()
+        self.get_suppliers()
         self.update_supplier_outstanding()
         self.process_auto_generate()
         self.process_auto_submit()
@@ -96,12 +84,6 @@ class PaymentsProcessor:
                 ...
         }
         """
-        self.get_suppliers()
-        self.get_invoices()
-        self.update_supplier_outstanding()
-        self.process_auto_generate()
-        self.process_auto_submit()
-
         for supplier_name, supplier_invoices in (
             self.processed_invoices.get("valid", {}).copy().items()
         ):
@@ -138,24 +120,25 @@ class PaymentsProcessor:
                         message=frappe.get_traceback(),
                     )
 
-        return self.processed_invoices
+    def notify_users(self):
+        if not (email_template := self.setting.email_template):
+            return
 
-    def get_suppliers(self):
-        suppliers = frappe.get_all(
-            "Supplier",
-            fields=(
-                "name",
-                "disabled",
-                "on_hold",
-                "hold_type",
-                "release_date",
-                "disable_auto_generate_payment_entry",
-                "auto_generate_threshold",
-                "due_date_offset",
-            ),
+        self.processed_invoices.company = self.setting.company
+
+        message = get_email_template(email_template, self.processed_invoices)
+
+        recipients = get_info_based_on_role(
+            ROLE_PROFILE.AUTO_PAYMENTS_MANAGER.value, "email"
         )
 
-        self.suppliers = {supplier.name: supplier for supplier in suppliers}
+        frappe.sendmail(
+            recipients=recipients,
+            subject=message.get("subject"),
+            message=message.get("message"),
+        )
+
+    ### Main Methods ###
 
     def get_invoices(self):
         """
@@ -268,6 +251,24 @@ class PaymentsProcessor:
             updated.total_outstanding_due += term_outstanding
             updated.total_discount += payment_term.discount_amount
             updated.setdefault("payment_terms", []).append(payment_term)
+
+    def get_suppliers(self):
+        suppliers = frappe.get_all(
+            "Supplier",
+            filters={"name": ("in", [row.supplier for row in self.invoices])},
+            fields=(
+                "name",
+                "disabled",
+                "on_hold",
+                "hold_type",
+                "release_date",
+                "disable_auto_generate_payment_entry",
+                "auto_generate_threshold",
+                "due_date_offset",
+            ),
+        )
+
+        self.suppliers = {supplier.name: supplier for supplier in suppliers}
 
     def update_supplier_outstanding(self):
         filters = frappe._dict(
