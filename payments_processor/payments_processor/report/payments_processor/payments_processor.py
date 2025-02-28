@@ -663,23 +663,6 @@ class PaymentsProcessor:
             "reason_code": "1008",
         }
 
-    def handle_pe_submission_failed(self, supplier):
-        valid = self.processed_entries.get("valid", frappe._dict())
-        entry = valid.pop(supplier, None)
-
-        if not entry:
-            return
-
-        entry.update(
-            {
-                "reason": "Payment Entry submission failed. Please check error logs.",
-                "reason_code": "3002",
-            }
-        )
-
-        invalid = self.processed_entries.setdefault("invalid", frappe._dict())
-        invalid[entry.party] = entry
-
     #### UTILS ####
 
     def is_discount_applicable(self, invoice):
