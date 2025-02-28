@@ -45,7 +45,11 @@ class PaymentsProcessor:
 
         self.today = getdate()
         self.automation_days = get_automation_days(setting)
-        self.next_payment_date = self.get_next_payment_date()
+
+        # TODO: correct this for discount
+        self.next_payment_date = add_days(
+            self.get_next_payment_date(), self.setting.due_date_offset
+        )
 
         company = frappe.get_cached_doc("Company", setting.company)
         self.default_currency = company.default_currency
@@ -278,8 +282,6 @@ class PaymentsProcessor:
                 "hold_type",
                 "release_date",
                 "disable_auto_generate_payment_entry",
-                "auto_generate_threshold",
-                "due_date_offset",
             ),
         )
 
@@ -298,6 +300,7 @@ class PaymentsProcessor:
             "naming_by": ["Buying Settings", "supp_master_name"],
         }
 
+        # TODO: use get_account_balance
         __, data = AccountsReceivableSummary(filters).run(args)
 
         outstandings = {row.party: row.remaining_balance for row in data}
@@ -497,12 +500,8 @@ class PaymentsProcessor:
             )
             return True
 
-        new_due_date = invoice.term_due_date and add_days(
-            invoice.term_due_date, self.setting.due_date_offset
-        )
-
-        if new_due_date and new_due_date < self.next_payment_date:
-            invoice.payment_date = self.get_previous_payment_date(new_due_date)
+        if invoice.term_due_date and invoice.term_due_date < self.next_payment_date:
+            invoice.payment_date = self.get_previous_payment_date(invoice.term_due_date)
             return True
 
         return False

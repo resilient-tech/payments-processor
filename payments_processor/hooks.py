@@ -8,6 +8,7 @@ app_license = "GNU General Public License (v3)"
 after_install = "payments_processor.install.after_install"
 before_uninstall = "payments_processor.uninstall.before_uninstall"
 
+# TODO: Make this comfigurable
 scheduler_events = {
     "cron": {
         # 1 pm daily
