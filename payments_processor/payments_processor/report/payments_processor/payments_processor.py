@@ -64,6 +64,7 @@ class PaymentsProcessor:
         self.setting = setting
         self.filters = filters or frappe._dict()
 
+        self.today = getdate()
         self.automation_days = get_automation_days(setting)
         self.next_payment_date = self.get_next_payment_date()
 
@@ -450,7 +451,7 @@ class PaymentsProcessor:
 
         pe.update(
             {
-                "posting_date": getdate(),
+                "posting_date": self.today,
                 "company": self.setting.company,
                 "bank_account": self.setting.bank_account,
                 "payment_type": "Pay",
@@ -463,7 +464,7 @@ class PaymentsProcessor:
                 "received_amount": paid_amount,
                 "references": references,
                 "reference_no": "-",
-                "reference_date": getdate(),
+                "reference_date": self.today,
                 "is_auto_generated": 1,
             }
         )
@@ -489,7 +490,7 @@ class PaymentsProcessor:
 
     def is_invoice_due(self, invoice):
         if invoice.is_return:
-            invoice.payment_date = getdate()
+            invoice.payment_date = self.today
             return True
 
         if self.is_discount_applicable(invoice):
@@ -536,7 +537,7 @@ class PaymentsProcessor:
         if supplier.hold_type not in ["All", "Payments"]:
             return False
 
-        if supplier.release_date and supplier.release_date > getdate():
+        if supplier.release_date and supplier.release_date > self.today:
             return False
 
         return {
@@ -608,7 +609,7 @@ class PaymentsProcessor:
         if not invoice.on_hold:
             return False
 
-        if invoice.release_date and invoice.release_date > getdate():
+        if invoice.release_date and invoice.release_date > self.today:
             return False
 
         return {
@@ -692,25 +693,14 @@ class PaymentsProcessor:
         if self.filters.payment_date:
             return self.filters.payment_date
 
-        if not self.automation_days:
-            return add_days(getdate(), 1)
-
-        today_index = WEEKDAYS.index(getdate().strftime("%A").lower())
+        today_index = WEEKDAYS.index(self.today.strftime("%A").lower())
 
         for i in range(1, 8):
             next_day = WEEKDAYS[(today_index + i) % 7]
             if next_day in self.automation_days:
-                return add_days(getdate(), i)
-
-        return add_days(getdate(), 1)
+                return add_days(self.today, i)
 
     def get_previous_payment_date(self, due_date):
-        today = getdate()
-        default_date = today if due_date < today else due_date
-
-        if not self.automation_days:
-            return default_date
-
         due_date_index = WEEKDAYS.index(due_date.strftime("%A").lower())
 
         for i in range(1, 8):
@@ -718,12 +708,10 @@ class PaymentsProcessor:
             if previous_day in self.automation_days:
                 # subject to max of today
                 previous_date = add_days(due_date, -i)
-                if previous_date < today:
-                    return today
+                if previous_date < self.today:
+                    return self.today
 
                 return previous_date
-
-        return default_date
 
     def get_paid_from(self):
         return frappe.get_cached_value(
