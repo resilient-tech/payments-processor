@@ -1,3 +1,4 @@
+import calendar
 from collections import defaultdict
 
 import frappe
@@ -10,11 +11,13 @@ from frappe.email.doctype.email_template.email_template import get_email_templat
 from frappe.utils import add_days, getdate
 from pypika import Order
 
-from payments_processor.constants import PROCESSOR_DOCTYPE, WEEKDAYS
+from payments_processor.constants import CONFIGURATION_DOCTYPE
+
+DAY_NAMES = list(calendar.day_name)
 
 
 def autocreate_payment_entry():
-    auto_pay_settings = frappe.get_all(PROCESSOR_DOCTYPE, "*", {"disabled": 0})
+    auto_pay_settings = frappe.get_all(CONFIGURATION_DOCTYPE, "*", {"disabled": 0})
 
     for setting in auto_pay_settings:
         automation_days = get_automation_days(setting)
@@ -659,18 +662,18 @@ class PaymentsProcessor:
         if self.filters.payment_date:
             return self.filters.payment_date
 
-        today_index = WEEKDAYS.index(self.today.strftime("%A").lower())
+        today_index = DAY_NAMES.index(self.today.strftime("%A"))
 
         for i in range(1, 8):
-            next_day = WEEKDAYS[(today_index + i) % 7]
+            next_day = DAY_NAMES[(today_index + i) % 7]
             if next_day in self.automation_days:
                 return add_days(self.today, i)
 
     def get_previous_payment_date(self, due_date):
-        due_date_index = WEEKDAYS.index(due_date.strftime("%A").lower())
+        due_date_index = DAY_NAMES.index(due_date.strftime("%A"))
 
         for i in range(1, 8):
-            previous_day = WEEKDAYS[(due_date_index - i) % 7]
+            previous_day = DAY_NAMES[(due_date_index - i) % 7]
             if previous_day in self.automation_days:
                 # subject to max of today
                 previous_date = add_days(due_date, -i)
@@ -728,4 +731,4 @@ class PaymentsProcessor:
 
 
 def get_automation_days(setting):
-    return [day for day in WEEKDAYS if setting.get(f"automate_on_{day}")]
+    return [day for day in DAY_NAMES if setting.get(f"automate_on_{day.lower()}")]

@@ -6,7 +6,7 @@ import frappe
 from frappe import _
 from frappe.utils import getdate
 
-from payments_processor.constants import PROCESSOR_DOCTYPE
+from payments_processor.constants import CONFIGURATION_DOCTYPE
 from payments_processor.payments_processor.utils.automation import PaymentsProcessor
 
 
@@ -44,7 +44,7 @@ def get_data() -> list[list]:
     The report data is a list of rows, with each row being a list of cell values.
     """
     filters = frappe._dict(payment_date=getdate("2025-02-28"))
-    auto_pay_settings = frappe.get_all(PROCESSOR_DOCTYPE, "*", {"disabled": 0})
+    auto_pay_settings = frappe.get_all(CONFIGURATION_DOCTYPE, "*", {"disabled": 0})
 
     for setting in auto_pay_settings:
         processor = PaymentsProcessor(setting, filters)

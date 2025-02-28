@@ -1,6 +1,6 @@
 from frappe.permissions import ADMIN_ROLE, ALL_USER_ROLE
 
-from payments_processor.constants import PROCESSOR_DOCTYPE
+from payments_processor.constants import CONFIGURATION_DOCTYPE
 from payments_processor.payments_processor.constants.enums import BaseEnum
 
 
@@ -47,7 +47,7 @@ PERMISSIONS = {
 ROLES = [
     ## Auto Payment Setting ##
     {
-        "doctype": PROCESSOR_DOCTYPE,
+        "doctype": CONFIGURATION_DOCTYPE,
         "role_name": ROLE_PROFILE.AUTO_PAYMENTS_MANAGER.value,
         "permlevels": PERMISSION_LEVEL.ZERO.value,
         "permissions": PERMISSIONS["Manager"],
