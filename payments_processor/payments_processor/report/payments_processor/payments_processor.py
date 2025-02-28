@@ -365,7 +365,7 @@ class PaymentsProcessor:
 
             functions = frappe.get_hooks("filter_auto_generate_payments")
             for fn in functions:
-                if msg := frappe.get_attr(fn)(supplier, invoice):
+                if msg := frappe.call(fn, supplier=supplier, invoice=invoice):
                     invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                     break
 
@@ -408,7 +408,7 @@ class PaymentsProcessor:
 
                 functions = frappe.get_hooks("filter_auto_submit_payments")
                 for fn in functions:
-                    if msg := frappe.get_attr(fn)(supplier, invoice):
+                    if msg := frappe.call(fn, supplier=supplier, invoice=invoice):
                         invoice.update(msg)
                         break
 
