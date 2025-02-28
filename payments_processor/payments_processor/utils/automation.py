@@ -2,7 +2,7 @@ import frappe
 from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_summary import (
     AccountsReceivableSummary,
 )
-from frappe.utils import today
+from frappe.utils import today, add_days
 from pypika import Order
 
 
@@ -91,8 +91,8 @@ class PaymentsGenerator(BaseProcessor):
                 ...
         }
         """
-        self.get_invoices()
         self.get_suppliers()
+        self.get_invoices()
         self.update_supplier_outstanding()
         self.process_invoices()
 
@@ -112,6 +112,23 @@ class PaymentsGenerator(BaseProcessor):
                 )
 
         return self.processed_invoices
+
+    def get_suppliers(self):
+        suppliers = frappe.get_all(
+            "Supplier",
+            fields=(
+                "name",
+                "disabled",
+                "on_hold",
+                "hold_type",
+                "release_date",
+                "disable_auto_generate_payment_entry",
+                "auto_generate_threshold",
+                "due_date_offset",
+            ),
+        )
+
+        self.suppliers = {supplier.name: supplier for supplier in suppliers}
 
     def get_invoices(self):
         """
@@ -218,24 +235,6 @@ class PaymentsGenerator(BaseProcessor):
 
             updated.total_outstanding_due += term_outstanding
             updated.setdefault("payment_terms", []).append(payment_term)
-
-    def get_suppliers(self):
-        suppliers = frappe.get_all(
-            "Supplier",
-            filters={
-                "name": ("in", {invoice.supplier for invoice in self.invoices}),
-            },
-            fields=(
-                "name",
-                "disabled",
-                "on_hold",
-                "hold_type",
-                "release_date",
-                "disable_auto_generate_payment_entry",
-            ),
-        )
-
-        self.suppliers = {supplier.name: supplier for supplier in suppliers}
 
     def update_supplier_outstanding(self):
         filters = frappe._dict(
@@ -383,7 +382,15 @@ class PaymentsGenerator(BaseProcessor):
         if self.is_discount_applicable(invoice):
             return True
 
-        if invoice.term_due_date and invoice.term_due_date < self.next_payment_date:
+        offset = (
+            self.suppliers[invoice.supplier].due_date_offset
+            or self.setting.due_date_offset
+        )
+
+        if (
+            invoice.term_due_date
+            and add_days(invoice.term_due_date, offset) < self.next_payment_date
+        ):
             return True
 
         return False
@@ -600,14 +607,6 @@ class PaymentsSubmitter(BaseProcessor):
                         "reason_code": "1000",
                     }
                 )
-                continue
-
-            if msg := self.is_supplier_disabled(supplier):
-                invalid[entry.party] = {**entry, **msg}
-                continue
-
-            if msg := self.is_supplier_blocked(supplier):
-                invalid[entry.party] = {**entry, **msg}
                 continue
 
             if msg := self.is_auto_submit_disabled(supplier):
