@@ -14,6 +14,8 @@
   "company",
   "automations_section",
   "auto_generate_entries",
+  "auto_generate_threshold",
+  "due_date_offset",
   "column_break_cmbf",
   "auto_submit_entries",
   "payment_threshold",
@@ -119,15 +121,6 @@
    "fieldname": "automate_on_thursday",
    "fieldtype": "Check",
    "label": "Thursday"
-  },
-  {
-   "default": "0",
-   "depends_on": "eval: doc.auto_submit_entries",
-   "description": "Payment entries upto this threshold will be submitted automatically. Set zero to submit all entries.",
-   "fieldname": "payment_threshold",
-   "fieldtype": "Currency",
-   "label": "Payment Threshold",
-   "mandatory_depends_on": "eval: doc.auto_submit_entries"
   },
   {
    "fieldname": "account_tab",
@@ -242,11 +235,35 @@
    "fieldname": "automations_section",
    "fieldtype": "Section Break",
    "label": "Automations"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval: doc.auto_generate_entries",
+   "description": "Payment entries upto this threshold will be generated automatically. Set zero to generate all entries.",
+   "fieldname": "auto_generate_threshold",
+   "fieldtype": "Currency",
+   "label": "Auto Generate Threshold"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval: doc.auto_submit_entries",
+   "description": "Payment entries upto this threshold will be submitted automatically. Set zero to submit all entries.",
+   "fieldname": "payment_threshold",
+   "fieldtype": "Currency",
+   "label": "Auto Submit Threshold"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval: doc.auto_generate_entries",
+   "description": "Adjusts the due date by the specified number of days",
+   "fieldname": "due_date_offset",
+   "fieldtype": "Int",
+   "label": "Due Date Offset (Days)"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-02-26 15:02:15.567658",
+ "modified": "2025-02-28 06:56:42.197207",
  "modified_by": "Administrator",
  "module": "Payments Processor",
  "name": "Payments Processor Configuration",

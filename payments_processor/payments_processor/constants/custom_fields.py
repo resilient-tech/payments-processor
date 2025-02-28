@@ -16,9 +16,25 @@ CUSTOM_FIELDS = {
             "permlevel": PERMISSION_LEVEL.SEVEN.value,
         },
         {
+            "fieldname": "auto_generate_threshold",
+            "label": "Auto Generate Threshold",
+            "fieldtype": "Currency",
+            "insert_after": "disable_auto_generate_payment_entry",
+            "permlevel": PERMISSION_LEVEL.SEVEN.value,
+            "description": "Overriding the default payment threshold to generate payment entries. Set zero to use default threshold.",
+        },
+        {
+            "fieldname": "due_date_offset",
+            "label": "Due Date Offset (Days)",
+            "fieldtype": "Int",
+            "insert_after": "auto_generate_threshold",
+            "permlevel": PERMISSION_LEVEL.SEVEN.value,
+            "description": "Overriding the default due date offset for purchase invoices. Set zero to use default offset.",
+        },
+        {
             "fieldname": "auto_payment_cb",
             "fieldtype": "Column Break",
-            "insert_after": "disable_auto_generate_payment_entry",
+            "insert_after": "due_date_offset",
         },
         {
             "fieldname": "disable_auto_submit_entries",
@@ -28,8 +44,8 @@ CUSTOM_FIELDS = {
             "permlevel": PERMISSION_LEVEL.SEVEN.value,
         },
         {
-            "fieldname": "payment_threshold",
-            "label": "Payment Threshold",
+            "fieldname": "auto_submit_threshold",
+            "label": "Auto Submit Threshold",
             "fieldtype": "Currency",
             "insert_after": "disable_auto_submit_entries",
             "permlevel": PERMISSION_LEVEL.SEVEN.value,

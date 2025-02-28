@@ -57,9 +57,10 @@ class PaymentsGenerator(BaseProcessor):
     def __init__(self, setting):
         self.setting = setting
         self.next_payment_date = self.get_next_payment_date()
-        self.default_currency = frappe.get_cached_value(
-            "Company", setting.company, "default_currency"
-        )
+
+        company = frappe.get_cached_doc("Company", setting.company)
+        self.default_currency = company.default_currency
+        self.discount_account = company.default_discount_account
 
     def run(self):
         """
@@ -318,10 +319,13 @@ class PaymentsGenerator(BaseProcessor):
         pe = frappe.new_doc("Payment Entry")
 
         paid_amount = 0
+        discount_amount = 0
         references = []
 
         for invoice in invoice_list:
-            paid_amount += invoice.amount_to_pay
+            discount_amount += invoice.discount_amount
+            paid_amount += invoice.amount_to_pay - discount_amount
+
             references.append(
                 {
                     "reference_doctype": "Purchase Invoice",
@@ -351,6 +355,21 @@ class PaymentsGenerator(BaseProcessor):
                 "reference_date": today(),
                 "is_auto_generated": 1,
             }
+        )
+
+        if not discount_amount:
+            return pe
+
+        if not self.discount_account:
+            frappe.throw("Default discount account is not set in Company")
+
+        pe.append(
+            "deductions",
+            {
+                "account": self.discount_account,
+                "cost_center": invoice.cost_center,  # TODO: could be different for each invoice
+                "amount": discount_amount,
+            },
         )
 
         return pe
@@ -557,7 +576,7 @@ class PaymentsSubmitter(BaseProcessor):
                 "hold_type",
                 "release_date",
                 "disable_auto_submit_entries",
-                "payment_threshold",
+                "auto_submit_threshold",
             ),
         )
 
@@ -620,12 +639,12 @@ class PaymentsSubmitter(BaseProcessor):
         }
 
     def is_threshold_exceeded(self, supplier, entry):
-        threshold = supplier.payment_threshold or self.setting.payment_threshold
+        threshold = supplier.auto_submit_threshold or self.setting.auto_submit_threshold
 
         if not threshold:
             return
 
-        if entry.paid_amount <= supplier.payment_threshold:
+        if entry.paid_amount <= supplier.auto_submit_threshold:
             return
 
         return {
