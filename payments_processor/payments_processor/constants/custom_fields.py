@@ -2,55 +2,55 @@ from payments_processor.payments_processor.constants.roles import PERMISSION_LEV
 
 CUSTOM_FIELDS = {
     "Supplier": [
-        {
-            "fieldname": "auto_payment_section",
-            "label": "Auto Payment Settings",
-            "fieldtype": "Section Break",
-            "insert_after": "release_date",
-        },
+        # {
+        #     "fieldname": "auto_payment_section",
+        #     "label": "Auto Payment Settings",
+        #     "fieldtype": "Section Break",
+        #     "insert_after": "release_date",
+        # },
         {
             "fieldname": "disable_auto_generate_payment_entry",
             "label": "Disable Auto Generate Payment Entry",
             "fieldtype": "Check",
-            "insert_after": "auto_payment_section",
+            "insert_after": "allow_purchase_invoice_creation_without_purchase_receipt",
             "permlevel": PERMISSION_LEVEL.SEVEN.value,
         },
-        {
-            "fieldname": "auto_generate_threshold",
-            "label": "Auto Generate Threshold",
-            "fieldtype": "Currency",
-            "insert_after": "disable_auto_generate_payment_entry",
-            "permlevel": PERMISSION_LEVEL.SEVEN.value,
-            "description": "Overriding the default payment threshold to generate payment entries. Set zero to use default threshold.",
-        },
-        {
-            "fieldname": "due_date_offset",
-            "label": "Due Date Offset (Days)",
-            "fieldtype": "Int",
-            "insert_after": "auto_generate_threshold",
-            "permlevel": PERMISSION_LEVEL.SEVEN.value,
-            "description": "Overriding the default due date offset for purchase invoices. Set zero to use default offset.",
-        },
-        {
-            "fieldname": "auto_payment_cb",
-            "fieldtype": "Column Break",
-            "insert_after": "due_date_offset",
-        },
-        {
-            "fieldname": "disable_auto_submit_entries",
-            "label": "Disable Auto Submit Entries",
-            "fieldtype": "Check",
-            "insert_after": "auto_payment_cb",
-            "permlevel": PERMISSION_LEVEL.SEVEN.value,
-        },
-        {
-            "fieldname": "auto_submit_threshold",
-            "label": "Auto Submit Threshold",
-            "fieldtype": "Currency",
-            "insert_after": "disable_auto_submit_entries",
-            "description": "Overriding the default payment threshold to submit payment entries. Set zero to use default threshold.",
-            "permlevel": PERMISSION_LEVEL.SEVEN.value,
-        },
+        # {
+        #     "fieldname": "auto_generate_threshold",
+        #     "label": "Auto Generate Threshold",
+        #     "fieldtype": "Currency",
+        #     "insert_after": "disable_auto_generate_payment_entry",
+        #     "permlevel": PERMISSION_LEVEL.SEVEN.value,
+        #     "description": "Overriding the default payment threshold to generate payment entries. Set zero to use default threshold.",
+        # },
+        # {
+        #     "fieldname": "due_date_offset",
+        #     "label": "Due Date Offset (Days)",
+        #     "fieldtype": "Int",
+        #     "insert_after": "auto_generate_threshold",
+        #     "permlevel": PERMISSION_LEVEL.SEVEN.value,
+        #     "description": "Overriding the default due date offset for purchase invoices. Set zero to use default offset.",
+        # },
+        # {
+        #     "fieldname": "auto_payment_cb",
+        #     "fieldtype": "Column Break",
+        #     "insert_after": "due_date_offset",
+        # },
+        # {
+        #     "fieldname": "disable_auto_submit_entries",
+        #     "label": "Disable Auto Submit Entries",
+        #     "fieldtype": "Check",
+        #     "insert_after": "auto_payment_cb",
+        #     "permlevel": PERMISSION_LEVEL.SEVEN.value,
+        # },
+        # {
+        #     "fieldname": "auto_submit_threshold",
+        #     "label": "Auto Submit Threshold",
+        #     "fieldtype": "Currency",
+        #     "insert_after": "disable_auto_submit_entries",
+        #     "description": "Overriding the default payment threshold to submit payment entries. Set zero to use default threshold.",
+        #     "permlevel": PERMISSION_LEVEL.SEVEN.value,
+        # },
     ],
     "Payment Entry": [
         {

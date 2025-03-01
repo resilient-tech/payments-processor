@@ -7,7 +7,7 @@ A powerful payments automation extension for ERPNext that streamlines payment op
 <br>
 </div>
 
-## Features
+## ✨ Features
 
 *Automate and optimize payment workflows*
 
@@ -17,7 +17,7 @@ A powerful payments automation extension for ERPNext that streamlines payment op
 
 - **Automation** Schedule payments, automate reminders, and customize payment workflows.
 
-## Installation
+## 🛠️ Installation
 
 ### Prerequisites
 
@@ -72,17 +72,17 @@ bench --site [site name] install-app payments_processor
 
 </details>
 
-## Documentation
+## 📚 Documentation
 
-- [Setup Guide]()
+- [Setup Guide](https://github.com/resilient-tech/payments-processor/blob/version-15/docs/1_setup_guide.md)
 - [Reports]()
-- [Customization Guide]()
+- [Customization Guide](https://github.com/resilient-tech/payments-processor/blob/version-15/docs/3_customization_guide.md)
 
-## Contributing
+## 🤝 Contributing
 
 - [Issue Guidelines](https://github.com/frappe/erpnext/wiki/Issue-Guidelines)
 - [Pull Request Requirements](https://github.com/frappe/erpnext/wiki/Contribution-Guidelines)
 
-## License
+## 📜 License
 
 [GNU General Public License (v3)](https://github.com/resilient-tech/payments-processor/blob/version-15/license.txt)

@@ -16,10 +16,13 @@
   "auto_generate_entries",
   "auto_generate_threshold",
   "due_date_offset",
-  "email_template",
   "column_break_cmbf",
   "auto_submit_entries",
   "auto_submit_threshold",
+  "section_break_rymn",
+  "email_template",
+  "column_break_qtne",
+  "email_to",
   "days_sections",
   "automate_on_monday",
   "automate_on_friday",
@@ -31,6 +34,10 @@
   "automate_on_sunday",
   "column_break_fjvk",
   "automate_on_thursday",
+  "section_break_kpid",
+  "processing_time",
+  "column_break_vxwb",
+  "last_execution",
   "configurations_section",
   "ignore_blocked_suppliers",
   "limit_payment_to_outstanding",
@@ -64,6 +71,7 @@
    "depends_on": "eval: doc.auto_generate_entries",
    "fieldname": "days_sections",
    "fieldtype": "Section Break",
+   "hide_border": 1,
    "label": "Days for Automation"
   },
   {
@@ -199,7 +207,8 @@
    "default": "1",
    "fieldname": "exclude_foreign_currency_invoices",
    "fieldtype": "Check",
-   "label": "Exclude Foreign Currency Invoices"
+   "label": "Exclude Foreign Currency Invoices",
+   "read_only": 1
   },
   {
    "default": "1",
@@ -211,6 +220,7 @@
   {
    "fieldname": "automations_section",
    "fieldtype": "Section Break",
+   "hide_border": 1,
    "label": "Automations"
   },
   {
@@ -250,11 +260,46 @@
    "fieldtype": "Link",
    "label": "Email Template",
    "options": "Email Template"
+  },
+  {
+   "fieldname": "section_break_rymn",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_qtne",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Email notification will be sent to all users with this role",
+   "fieldname": "email_to",
+   "fieldtype": "Link",
+   "label": "Email To",
+   "options": "Role"
+  },
+  {
+   "description": "Time during the day when processing should be done",
+   "fieldname": "processing_time",
+   "fieldtype": "Time",
+   "label": "Processing Time"
+  },
+  {
+   "fieldname": "section_break_kpid",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_vxwb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_execution",
+   "fieldtype": "Datetime",
+   "label": "Last Execution",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-02-28 14:09:24.908949",
+ "modified": "2025-03-01 10:44:27.963980",
  "modified_by": "Administrator",
  "module": "Payments Processor",
  "name": "Payments Processor Configuration",
