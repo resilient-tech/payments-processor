@@ -10,10 +10,7 @@ before_uninstall = "payments_processor.uninstall.before_uninstall"
 
 # TODO: Make this comfigurable
 scheduler_events = {
-    "cron": {
-        # 1 pm daily
-        "0 13 * * *": [
-            "payments_processor.payments_processor.utils.automation.autocreate_payment_entry"
-        ]
-    }
+    "all": [
+        "payments_processor.payments_processor.utils.automation.autocreate_payment_entry"
+    ]
 }

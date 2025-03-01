@@ -9,7 +9,7 @@ from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_sum
 from frappe import _
 from frappe.core.doctype.role.role import get_info_based_on_role
 from frappe.email.doctype.email_template.email_template import get_email_template
-from frappe.utils import add_days, getdate
+from frappe.utils import add_days, get_timedelta, getdate, now_datetime
 from pypika import Order
 
 from payments_processor.constants import CONFIGURATION_DOCTYPE
@@ -35,7 +35,24 @@ def autocreate_payment_entry():
     auto_pay_settings = frappe.get_all(CONFIGURATION_DOCTYPE, "*", {"disabled": 0})
 
     for setting in auto_pay_settings:
-        PaymentsProcessor(setting).create_payments()
+        if not setting.processing_time:
+            continue
+
+        if setting.processing_time > time_now():
+            continue
+
+        if setting.last_execution and getdate(setting.last_execution) == getdate():
+            continue
+
+        PaymentsProcessor(setting).run()
+
+        frappe.db.set_value(
+            CONFIGURATION_DOCTYPE, setting.name, "last_execution", frappe.utils.now()
+        )
+
+
+def time_now():
+    return get_timedelta(now_datetime().strftime("%H:%M:%S"))
 
 
 class PaymentsProcessor:
@@ -274,7 +291,7 @@ class PaymentsProcessor:
     def get_suppliers(self):
         suppliers = frappe.get_all(
             "Supplier",
-            filters={"name": ("in", [row.supplier for row in self.invoices])},
+            filters={"name": ("in", [row.supplier for row in self.invoices.values()])},
             fields=(
                 "name",
                 "disabled",
