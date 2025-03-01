@@ -1,7 +1,7 @@
 EMAIL_TEMPLATES = [
     {
         "name": "Auto Payment Email",
-        "subject": "Auto Payments for {{ company }} Created",
+        "subject": "Payment Processor Report for {{ company }}",
         "use_html": 1,
         "response_html": """
         <!DOCTYPE html>
@@ -11,65 +11,60 @@ EMAIL_TEMPLATES = [
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Payment Report</title>
             </head>
-            <body style="font-family: Arial, sans-serif; color: #333; background-color: #f9f9f9; padding: 20px;">
-                <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
+
+            <body style="font-family: Arial, sans-serif; color: #333; background-color: #f9f9f9; padding: 20px; margin: 0;">
+                <div style="max-width: 800px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);">
                     <!-- Company Name Styling -->
-                    <h3 style="color: #4A90E2; font-size: 24px; margin-bottom: 20px; text-align: center;">
-                        Payment Report for <span style="font-size: 28px; font-weight: bold; color: #E91E63;">{{ company }}</span>
-                    </h3>
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h3 style="color: #232323; font-size: 24px; margin: 0;">Payment Processor Report</h3>
+                        <h4 style="font-size: 20px; font-weight: bold; color: #941f1f; margin: 10px 0 0;">{{ company }}</h4>
+                    </div>
 
-                    <!-- Updated Text for Successful Payments -->
-                    <p style="font-size: 14px; line-height: 1.5; color: #4A90E2; font-weight: bold; margin-bottom: 10px;">
-                        ✅ Successful Payments:
-                    </p>
-                    <p style="font-size: 13px; line-height: 1.5; color: #555; margin-bottom: 20px;">
-                        The following payments have been successfully processed. Please review the details below:
+                    <!-- Processed -->
+                    <p style="font-size: 14px; line-height: 1.5; color: #232323; font-weight: bold; margin-bottom: 10px;">
+                        Payment Entries Processed
                     </p>
 
-                    <!-- Table for Valid Payments -->
                     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                         <thead>
-                            <tr style="background-color: #4A90E2; color: #ffffff;">
-                                <th style="padding: 12px; text-align: center; vertical-align: middle;">Supplier</th>
-                                <th style="padding: 12px; text-align: center; vertical-align: middle;">Payment Entry</th>
-                                <th style="padding: 12px; text-align: center; vertical-align: middle;">Paid Amount</th>
-                                <th style="padding: 12px; text-align: center; vertical-align: middle;">Invoices Paid</th>
+                            <tr style="background-color: #232323; color: #ffffff;">
+                                <th style="padding: 12px; text-align: left;">Supplier</th>
+                                <th style="padding: 12px; text-align: left;">Payment Entry</th>
+                                <th style="padding: 12px; text-align: right;">Paid Amount</th>
+                                <th style="padding: 12px; text-align: left;">Status</th>
+                                <th style="padding: 12px; text-align: center; width: 150px;">Invoices Paid</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for supplier in valid %}
                                 {% set invoices = valid[supplier] %}
-                                {% set invoice_name = namespace(value="") %}
-                                {% for invoice in invoices %}
-                                    {% set invoice_name.value = invoice_name.value + invoice.name + ', ' %}
-                                {% endfor %}
+                                {% set invoice_names = invoices | map(attribute='name') | join(', ') %}
                                 <tr style="border-bottom: 1px solid #ddd;">
-                                    <td style="padding: 12px; text-align: left;">{{ supplier }}</td>
-                                    <td style="padding: 12px; text-align: left;">{{ invoices[0].payment_entry }}</td>
-                                    <td style="padding: 12px; text-align: left;">{{ invoices[0].paid_amount }}</td>
-                                    <td style="padding: 12px; text-align: left;">{{ invoice_name.value }}</td>
+                                    <td style="padding: 12px; text-align: left; white-space: nowrap;">{{ supplier }}</td>
+                                    <td style="padding: 12px; text-align: left; white-space: nowrap;">{{ invoices[0].payment_entry }}</td>
+                                    <td style="padding: 12px; text-align: right; white-space: nowrap;">{{ frappe.utils.fmt_money(invoices[0].paid_amount, currency=invoices[0].paid_from_account_currency) }}</td>
+                                    <td style="padding: 12px; text-align: left; white-space: nowrap;">{{ invoices[0].pe_status }}</td>
+                                    <td style="padding: 12px; text-align: left;">{{ invoice_names }}</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
 
-                    <!-- Updated Text for Failed Payments -->
-                    <p style="font-size: 14px; line-height: 1.5; color: #FF5252; font-weight: bold; margin-bottom: 10px;">
-                        ❌ Failed Payments:
-                    </p>
-                    <p style="font-size: 13px; line-height: 1.5; color: #555; margin-bottom: 20px;">
-                        The following payments could not be processed due to the reasons mentioned below:
+                    <br>
+
+                    <!-- Skipped -->
+                    <p style="font-size: 14px; line-height: 1.5; color: #7c7c7c; font-weight: bold; margin-bottom: 10px;">
+                        Purchase Invoices Skipped
                     </p>
 
-                    <!-- Table for Invalid Payments -->
                     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                         <thead>
-                            <tr style="background-color: #FF5252; color: #ffffff;">
-                                <th style="padding: 12px; text-align: center; vertical-align: middle;">Supplier</th>
-                                <th style="padding: 12px; text-align: center; vertical-align: middle;">Invoice Number</th>
-                                <th style="padding: 12px; text-align: center; vertical-align: middle;">Outstanding Amount</th>
-                                <th style="padding: 12px; text-align: center; vertical-align: middle;">Reason Code</th>
-                                <th style="padding: 12px; text-align: center; vertical-align: middle;">Reason</th>
+                            <tr style="background-color: #7c7c7c; color: #ffffff;">
+                                <th style="padding: 12px; text-align: left;">Supplier</th>
+                                <th style="padding: 12px; text-align: left;">Purchase Invoice</th>
+                                <th style="padding: 12px; text-align: right;">Outstanding Amount</th>
+                                <th style="padding: 12px; text-align: right;">Reason Code</th>
+                                <th style="padding: 12px; text-align: center; width: 200px;">Reason</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -77,23 +72,19 @@ EMAIL_TEMPLATES = [
                                 {% set invoices = invalid[supplier] %}
                                 {% for invoice in invoices %}
                                     <tr style="border-bottom: 1px solid #ddd;">
-                                        <td style="padding: 12px; text-align: left;">{{ supplier }}</td>
-                                        <td style="padding: 12px; text-align: left;">{{ invoice.name }}</td>
-                                        <td style="padding: 12px; text-align: left;">{{ invoice.amount_to_pay }}</td>
-                                        <td style="padding: 12px; text-align: left;">{{ invoice.reason_code }}</td>
+                                        <td style="padding: 12px; text-align: left; white-space: nowrap;">{{ supplier }}</td>
+                                        <td style="padding: 12px; text-align: left; white-space: nowrap;">{{ invoice.name }}</td>
+                                        <td style="padding: 12px; text-align: right; white-space: nowrap;">{{ frappe.utils.fmt_money(invoice.amount_to_pay, currency=invoice.currency) }}</td>
+                                        <td style="padding: 12px; text-align: right; white-space: nowrap;">{{ invoice.reason_code }}</td>
                                         <td style="padding: 12px; text-align: left;">{{ invoice.reason }}</td>
                                     </tr>
                                 {% endfor %}
                             {% endfor %}
                         </tbody>
                     </table>
-
-                    <!-- Thank You Message -->
-                    <p style="font-size: 13px; line-height: 1.5; text-align: left; color: #555; margin-top: 20px;">
-                        Thank you for your attention!
-                    </p>
                 </div>
+
             </body>
-        </html>""",
+    </html>""",
     }
 ]
