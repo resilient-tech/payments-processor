@@ -429,7 +429,6 @@ class PaymentsProcessor:
         for supplier_name, invoice_list in self.processed_invoices.get(
             "valid", {}
         ).items():
-
             supplier = self.suppliers[supplier_name]
             for invoice in invoice_list:
                 paid_amount = invoice.amount_to_pay - invoice.total_discount

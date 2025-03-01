@@ -10,7 +10,6 @@ from payments_processor.payments_processor.utils.automation import PaymentsProce
 
 
 def execute(filters: dict | None = None):
-
     columns = get_columns()
     data = get_data()
 
