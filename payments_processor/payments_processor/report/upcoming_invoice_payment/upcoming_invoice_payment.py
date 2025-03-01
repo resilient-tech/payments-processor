@@ -11,7 +11,7 @@ from payments_processor.payments_processor.utils.automation import PaymentsProce
 
 def execute(filters: dict | None = None):
     columns = get_columns()
-    data = get_data()
+    data = get_data(filters)
 
     return columns, data
 
@@ -27,26 +27,82 @@ def get_columns() -> list[dict]:
             "fieldname": "supplier",
             "fieldtype": "Link",
             "options": "Supplier",
+            "width": 200,
         },
         {
             "label": _("Purchase Invoice"),
-            "fieldname": "column_2",
-            "fieldtype": "Int",
+            "fieldname": "name",
+            "fieldtype": "Link",
+            "options": "Purchase Invoice",
+            "width": 200,
+        },
+        {
+            "label": _("Due Date"),
+            "fieldname": "due_date",
+            "fieldtype": "Date",
+        },
+        {
+            "label": _("Auto Payment Date"),
+            "fieldname": "payment_date",
+            "fieldtype": "Date",
+        },
+        {
+            "label": _("Amount to Pay"),
+            "fieldname": "amount_to_pay",
+            "fieldtype": "Currency",
+        },
+        {
+            "label": _("Auto Generate"),
+            "fieldname": "auto_generate",
+            "fieldtype": "Check",
+        },
+        {
+            "label": _("Auto Submit"),
+            "fieldname": "auto_submit",
+            "fieldtype": "Check",
+        },
+        {
+            "label": _("Reason Code"),
+            "fieldname": "reason_code",
+            "fieldtype": "Data",
+        },
+        {
+            "label": _("Reason"),
+            "fieldname": "reason",
+            "fieldtype": "Data",
         },
     ]
 
 
-def get_data() -> list[list]:
+def get_data(filters) -> list[list]:
     """Return data for the report.
 
     The report data is a list of rows, with each row being a list of cell values.
     """
-    filters = frappe._dict(payment_date=getdate("2025-02-28"))
-    auto_pay_settings = frappe.get_all(CONFIGURATION_DOCTYPE, "*", {"disabled": 0})
+    auto_pay_settings = frappe.get_all(
+        CONFIGURATION_DOCTYPE,
+        "*",
+        {
+            "disabled": 0,
+            "company": filters.get("company"),
+        },
+    )
+
+    if not auto_pay_settings:
+        frappe.throw(_("Payments Processor Configuration not found for this company"))
+
+    data = []
 
     for setting in auto_pay_settings:
-        processor = PaymentsProcessor(setting, filters)
-        print(processor.process_invoices())
+        processed = PaymentsProcessor(setting, filters).process_invoices()
+
+        for invoices in processed.get("valid", {}).values():
+            data.extend(invoices)
+
+        for invoices in processed.get("invalid", {}).values():
+            data.extend(invoices)
+
+    return data
 
 
 # TODO: different payable account used in purchase invoice

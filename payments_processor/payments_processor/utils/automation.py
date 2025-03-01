@@ -287,6 +287,7 @@ class PaymentsProcessor:
 
             self.apply_discount(payment_term)
 
+            updated.due_date = payment_term.due_date
             updated.total_outstanding_due += term_outstanding
             updated.total_discount += payment_term.discount_amount
             updated.setdefault("payment_terms", []).append(payment_term)
@@ -382,10 +383,8 @@ class PaymentsProcessor:
                 invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                 continue
 
-            paid_amount = invoice.amount_to_pay - invoice.total_discount
-
             if not self.setting.group_payments_by_supplier and (
-                msg := self.is_auto_generate_threshold_exceeded(paid_amount)
+                msg := self.is_auto_generate_threshold_exceeded(invoice.amount_to_pay)
             ):
                 invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                 continue
@@ -406,7 +405,7 @@ class PaymentsProcessor:
                     break
 
             else:
-                self.supplier_paid_amount[invoice.supplier] += paid_amount
+                self.supplier_paid_amount[invoice.supplier] += invoice.amount_to_pay
 
                 invoice.auto_generate = 1
                 valid.setdefault(invoice.supplier, []).append(invoice)
@@ -433,10 +432,8 @@ class PaymentsProcessor:
         ).items():
             supplier = self.suppliers[supplier_name]
             for invoice in invoice_list:
-                paid_amount = invoice.amount_to_pay - invoice.total_discount
-
                 if not self.setting.group_payments_by_supplier and (
-                    msg := self.is_auto_submit_threshold_exceeded(paid_amount)
+                    msg := self.is_auto_submit_threshold_exceeded(invoice.amount_to_pay)
                 ):
                     invoice.update(msg)
                     continue
@@ -469,17 +466,18 @@ class PaymentsProcessor:
 
         for invoice in invoice_list:
             total_discount += invoice.total_discount
-            paid_amount += invoice.amount_to_pay - invoice.total_discount
+            paid_amount += invoice.amount_to_pay
+            allowed_amount = invoice.amount_to_pay + invoice.total_discount
 
             references.append(
                 {
                     "reference_doctype": "Purchase Invoice",
                     "reference_name": invoice.name,
                     "bill_no": invoice.bill_no,
-                    "due_date": invoice.payment_terms[0].due_date,
+                    "due_date": invoice.due_date,
                     "total_amount": invoice.grand_total,
-                    "outstanding_amount": invoice.amount_to_pay,
-                    "allocated_amount": invoice.amount_to_pay,
+                    "outstanding_amount": allowed_amount,
+                    "allocated_amount": allowed_amount,
                 }
             )
 
@@ -527,7 +525,7 @@ class PaymentsProcessor:
             invoice.payment_date = self.today
             return True
 
-        if self.is_discount_applicable(invoice):
+        if self.is_discount_applicable(invoice.term_discount_date):
             invoice.payment_date = self.get_previous_payment_date(
                 invoice.term_discount_date
             )
@@ -540,7 +538,7 @@ class PaymentsProcessor:
         return False
 
     def apply_discount(self, payment_term):
-        if not self.is_discount_applicable(payment_term):
+        if not self.is_discount_applicable(payment_term.discount_date):
             payment_term.discount_amount = 0
             return
 
@@ -577,13 +575,15 @@ class PaymentsProcessor:
 
     def is_payment_exceeding_supplier_outstanding(self, supplier, invoice):
         if not self.setting.limit_payment_to_outstanding:
-            invoice.amount_to_pay = invoice.total_outstanding_due
+            invoice.amount_to_pay = (
+                invoice.total_outstanding_due - invoice.total_discount
+            )
             return
 
         if amount_to_pay := min(
             invoice.total_outstanding_due, supplier.remaining_balance
         ):
-            invoice.amount_to_pay = amount_to_pay
+            invoice.amount_to_pay = amount_to_pay - invoice.total_discount
             supplier.remaining_balance -= amount_to_pay
             return
 
@@ -666,16 +666,16 @@ class PaymentsProcessor:
 
     #### UTILS ####
 
-    def is_discount_applicable(self, invoice):
+    def is_discount_applicable(self, discount_date):
         return (
             self.setting.claim_early_payment_discount
-            and invoice.term_discount_date
-            and invoice.term_discount_date < self.next_payment_date
+            and discount_date
+            and discount_date < self.next_payment_date
         )
 
     def get_next_payment_date(self):
         if self.filters.payment_date:
-            return self.filters.payment_date
+            return getdate(self.filters.payment_date)
 
         today_index = DAY_NAMES.index(self.today.strftime("%A"))
 
