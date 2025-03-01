@@ -44,11 +44,11 @@ class PaymentsProcessor:
         self.filters = filters or frappe._dict()
 
         self.today = getdate()
-        self.automation_days = get_automation_days(setting)
+        self.automation_days = self.get_automation_days()
 
-        # TODO: correct this for discount
-        self.next_payment_date = add_days(
-            self.get_next_payment_date(), self.setting.due_date_offset
+        self.next_payment_date = self.get_next_payment_date()
+        self.offset_due_date = add_days(
+            self.next_payment_date, -self.setting.due_date_offset
         )
 
         company = frappe.get_cached_doc("Company", setting.company)
@@ -215,7 +215,7 @@ class PaymentsProcessor:
             .where(doc.company == self.setting.company)
             .where(  # invoice is due
                 (doc.is_return == 1)  # immediately claim refund for returns
-                | ((doc.is_return == 0) & (terms.due_date < self.next_payment_date))
+                | ((doc.is_return == 0) & (terms.due_date < self.offset_due_date))
                 | (
                     (doc.is_return == 0)
                     & (terms.discount_date.notnull())
@@ -500,7 +500,7 @@ class PaymentsProcessor:
             )
             return True
 
-        if invoice.term_due_date and invoice.term_due_date < self.next_payment_date:
+        if invoice.term_due_date and invoice.term_due_date < self.offset_due_date:
             invoice.payment_date = self.get_previous_payment_date(invoice.term_due_date)
             return True
 
@@ -707,9 +707,7 @@ class PaymentsProcessor:
     def get_error_msg(self, code):
         return {"reason": ERRORS.get(code), "reason_code": code}
 
-
-## Utils
-
-
-def get_automation_days(setting):
-    return [day for day in DAY_NAMES if setting.get(f"automate_on_{day.lower()}")]
+    def get_automation_days(self):
+        return [
+            day for day in DAY_NAMES if self.setting.get(f"automate_on_{day.lower()}")
+        ]
