@@ -140,7 +140,7 @@ class PaymentsProcessor:
                 try:
                     pe = self.create_payment_entry(supplier_name, invoice_group)
 
-                    pe.flags.initiated_by_payment_processor = True
+                    frappe.flags.initiated_by_payment_processor = True
                     pe.flags.invoice_list = invoice_group
                     pe.save()
 
