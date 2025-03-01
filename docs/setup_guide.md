@@ -1,5 +1,7 @@
 ## Payment Entry Automation Setup
 
+![payments_processor_configuration](https://github.com/user-attachments/assets/a0317608-af5e-4f83-ba72-8d682ffa6e27)
+
 1. **Open Payments Processor Configuration**  
    - Go to *Payments Processor Configuration* and select or create a new record.
 
