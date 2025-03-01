@@ -135,7 +135,7 @@ class PaymentsProcessor:
                 for invoice in invoice_group:
                     invoice.payment_entry = pe.name
                     invoice.paid_amount = pe.paid_amount
-                    invoice.pe_status = pe.docstatus
+                    invoice.status = pe.status
                     invoice.paid_from_account_currency = pe.paid_from_account_currency
 
             for invoice_group in get_invoice_group(supplier_invoices):
