@@ -6,6 +6,7 @@ import frappe
 from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_summary import (
     AccountsReceivableSummary,
 )
+from erpnext.accounts.utils import get_balance_on
 from frappe import _
 from frappe.core.doctype.role.role import get_info_based_on_role
 from frappe.email.doctype.email_template.email_template import get_email_template
@@ -21,12 +22,12 @@ ERRORS = {
     "1001": "Supplier is disabled",
     "1002": "Payments to supplier are blocked",
     "1003": "Auto generate payment entry is disabled for this supplier",
-    "1004": "Draft payment entry already exists for this supplier",
     "1005": "Supplier has no outstanding balance",
     "1006": "Payment generation threshold exceeded",
     "1021": "Payment submission threshold exceeded",
     "2001": "Payment for this invoice is blocked",
     "2002": "Foreign currency invoice",
+    "2003": "Draft payment entry already exists for this invoice",
     "3001": "Payment Entry creation failed. Please check error logs.",
 }
 
@@ -305,25 +306,37 @@ class PaymentsProcessor:
         self.suppliers = {supplier.name: supplier for supplier in suppliers}
 
     def update_supplier_outstanding(self):
-        filters = frappe._dict(
-            {
-                "company": self.setting.company,
-                "show_future_payments": 1,
-            }
+        if not self.setting.limit_payment_to_outstanding:
+            return
+
+        # draft payment entries
+        pe_map = frappe._dict(
+            frappe.get_all(
+                "Payment Entry",
+                filters={
+                    "docstatus": 0,
+                    "party_type": "Supplier",
+                    "payment_type": "Pay",
+                    "party": ["in", self.suppliers.keys()],
+                },
+                fields=["party", "sum(paid_amount) as paid_amount"],
+                group_by="party",
+                as_list=True,
+            )
         )
 
-        args = {
-            "account_type": "Payable",
-            "naming_by": ["Buying Settings", "supp_master_name"],
-        }
+        one_year_from_now = add_days(self.today, 365)
 
-        # TODO: use get_account_balance
-        __, data = AccountsReceivableSummary(filters).run(args)
-
-        outstandings = {row.party: row.remaining_balance for row in data}
-
+        # update outstanding
         for supplier in self.suppliers.values():
-            supplier.remaining_balance = outstandings.get(supplier.name, 0)
+            outstanding = get_balance_on(
+                date=one_year_from_now,
+                party_type="Supplier",
+                party=supplier.name,
+                company=self.setting.company,
+            )
+
+            supplier.remaining_balance = outstanding * -1 - pe_map.get(supplier.name, 0)
 
     def process_auto_generate(self):
         if not self.setting.auto_generate_entries:
@@ -357,7 +370,9 @@ class PaymentsProcessor:
                 invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                 continue
 
-            if msg := self.payment_entry_exists(supplier):
+            # run before outstanding check (for better error message)
+            # since outstanding amount is adjusted based on draft PEs
+            if msg := self.payment_entry_exists(invoice):
                 invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                 continue
 
@@ -559,25 +574,6 @@ class PaymentsProcessor:
 
         return self.get_error_msg("1003")
 
-    def payment_entry_exists(self, supplier):
-        if getattr(self, "draft_payment_parties", None) is None:
-            # TODO: Should we check if draft is for a specific invoice instead?
-            self.draft_payment_parties = frappe.get_all(
-                "Payment Entry",
-                filters={
-                    "docstatus": 0,
-                    "payment_type": "Pay",
-                    "party_type": "Supplier",
-                    "party": ["in", self.suppliers.keys()],
-                },
-                pluck="party",
-            )
-
-        if supplier.name not in self.draft_payment_parties:
-            return False
-
-        return self.get_error_msg("1004")
-
     def is_payment_exceeding_supplier_outstanding(self, supplier, invoice):
         if not self.setting.limit_payment_to_outstanding:
             invoice.amount_to_pay = invoice.total_outstanding_due
@@ -618,6 +614,28 @@ class PaymentsProcessor:
             return
 
         return self.get_error_msg("2002")
+
+    def payment_entry_exists(self, invoice):
+        if getattr(self, "draft_payment_invoices", None) is None:
+            invoices = frappe.get_all(
+                "Payment Entry",
+                filters={
+                    "docstatus": 0,
+                    "payment_type": "Pay",
+                    "party_type": "Supplier",
+                    "party": ["in", self.suppliers.keys()],
+                    "reference_doctype": "Purchase Invoice",
+                },
+                fields=["`tabPayment Entry Reference`.reference_name"],
+                as_list=True,
+            )
+
+            self.draft_payment_invoices = {row[0] for row in invoices}
+
+        if invoice.name not in self.draft_payment_invoices:
+            return False
+
+        return self.get_error_msg("2003")
 
     def handle_pe_creation_failed(self, supplier_name):
         valid = self.processed_invoices.get("valid", frappe._dict())
