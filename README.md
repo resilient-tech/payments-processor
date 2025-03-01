@@ -74,9 +74,9 @@ bench --site [site name] install-app payments_processor
 
 ## Documentation
 
-- [Setup Guide]()
+- [Setup Guide](https://github.com/resilient-tech/payments-processor/blob/version-15/docs/1_setup_guide.md)
 - [Reports]()
-- [Customization Guide]()
+- [Customization Guide](https://github.com/resilient-tech/payments-processor/blob/version-15/docs/3_customization_guide.md)
 
 ## Contributing
 
