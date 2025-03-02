@@ -13,7 +13,7 @@ A powerful payments automation extension for ERPNext that streamlines payment op
 
 - **Smart Due Date Calculation** Auto-computes payment deadlines considering terms, early-payment discounts, and grace periods.
 
-- **Bulk Payment Engine** Generate bulk payment entries for multiple invoices, bills, and expenses in a single click.
+- **Bulk Payment Engine** Generate bulk payment entries for multiple invoices in a single click.
 
 - **Automation** Schedule payments, automate reminders, and customize payment workflows.
 
@@ -75,7 +75,7 @@ bench --site [site name] install-app payments_processor
 ## 📚 Documentation
 
 - [Setup Guide](https://github.com/resilient-tech/payments-processor/blob/version-15/docs/1_setup_guide.md)
-- [Reports]()
+- [Reports](<https://github.com/resilient-tech/payments-processor/blob/version-15/docs/2_reports.md>)
 - [Customization Guide](https://github.com/resilient-tech/payments-processor/blob/version-15/docs/3_customization_guide.md)
 
 ## 🤝 Contributing
