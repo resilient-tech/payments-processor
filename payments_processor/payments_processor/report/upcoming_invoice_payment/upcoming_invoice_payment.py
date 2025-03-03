@@ -70,6 +70,7 @@ def get_columns() -> list[dict]:
             "label": _("Reason"),
             "fieldname": "reason",
             "fieldtype": "Data",
+            "width": 300,
         },
     ]
 
@@ -94,6 +95,10 @@ def get_data(filters) -> list[list]:
     data = []
 
     for setting in auto_pay_settings:
+        if not setting.auto_generate_entries:
+            frappe.throw(_("Auto Generate Entries is not enabled"))
+            return
+
         processed = PaymentsProcessor(setting, filters).process_invoices()
 
         for invoices in processed.get("valid", {}).values():
