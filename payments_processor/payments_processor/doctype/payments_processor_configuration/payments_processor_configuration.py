@@ -84,10 +84,8 @@ class PaymentsProcessorConfiguration(Document):
             frappe.throw(
                 title=_("Default Cost Center Required"),
                 msg=_(
-                    "Please set a default Cost Center in the Company {0} settings to claim early payment discounts.".format(  # noqa: UP030
-                        frappe.bold(get_link_to_form("Company", self.company))
-                    )
-                ),
+                    "Please set a default Cost Center in the Company {0} settings to claim early payment discounts."
+                ).format(frappe.bold(get_link_to_form("Company", self.company))),
             )
 
     def validate_automation_days(self):
