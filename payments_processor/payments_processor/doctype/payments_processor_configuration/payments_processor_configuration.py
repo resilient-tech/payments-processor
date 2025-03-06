@@ -1,9 +1,11 @@
 # Copyright (c) 2024, Resilient Tech and contributors
 # For license information, please see license.txt
 
-import frappe
+import frappe  # noqa: I001
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import get_link_to_form
+from erpnext import get_default_cost_center
 
 # Auto Payment Setting
 # Payouts not required
@@ -49,6 +51,7 @@ class PaymentsProcessorConfiguration(Document):
             return
 
         self.validate_default_discount_account()
+        self.validate_default_cost_center()
         self.validate_automation_days()
 
     def set_defaults(self):
@@ -71,6 +74,20 @@ class PaymentsProcessorConfiguration(Document):
                 _(
                     "Please set a default payment discount account in the company settings."
                 )
+            )
+
+    def validate_default_cost_center(self):
+        if not self.claim_early_payment_discount:
+            return
+
+        if not get_default_cost_center(self.company):
+            frappe.throw(
+                title=_("Default Cost Center Required"),
+                msg=_(
+                    "Please set a default Cost Center in the Company {0} settings to claim early payment discounts.".format(  # noqa: UP030
+                        frappe.bold(get_link_to_form("Company", self.company))
+                    )
+                ),
             )
 
     def validate_automation_days(self):

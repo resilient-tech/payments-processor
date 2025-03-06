@@ -8,7 +8,9 @@ app_license = "GNU General Public License (v3)"
 after_install = "payments_processor.install.after_install"
 before_uninstall = "payments_processor.uninstall.before_uninstall"
 
-# TODO: Make this comfigurable
+before_tests = "payments_processor.tests.before_tests"
+
+# TODO: Make this configurable
 scheduler_events = {
     "all": [
         "payments_processor.payments_processor.utils.automation.autocreate_payment_entry"
