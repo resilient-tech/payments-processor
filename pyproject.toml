@@ -1,8 +1,6 @@
 [project]
 name = "payments_processor"
-authors = [
-    { name = "Resilient Tech", email = "info@resilient.tech"}
-]
+authors = [{ name = "Resilient Tech", email = "info@resilient.tech" }]
 description = "Automates the creation of Payment Entries and handles payments."
 requires-python = ">=3.10"
 readme = "README.md"
@@ -16,15 +14,7 @@ requires = ["flit_core >=3.4,<4"]
 build-backend = "flit_core.buildapi"
 
 [tool.ruff.lint]
-select = [
-    "F",
-    "E",
-    "W",
-    "I",
-    "UP",
-    "B",
-    "RUF",
-]
+select = ["F", "E", "W", "I", "UP", "B", "RUF"]
 
 ignore = [
     "E501", # line too long
@@ -47,3 +37,19 @@ docstring-code-format = true
 [tool.bench.frappe-dependencies]
 frappe = ">=15.0.0,<16.0.0"
 erpnext = ">=15.0.0,<16.0.0"
+
+
+[tool.isort]
+profile = "black"
+known_frappe = "frappe"
+known_erpnext = "erpnext"
+no_lines_before = ["ERPNEXT"]
+sections = [
+    "FUTURE",
+    "STDLIB",
+    "THIRDPARTY",
+    "FRAPPE",
+    "ERPNEXT",
+    "FIRSTPARTY",
+    "LOCALFOLDER",
+]

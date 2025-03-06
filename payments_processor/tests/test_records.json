@@ -1,0 +1,110 @@
+{
+    "Company": [
+        {
+            "abbr": "_TC",
+            "company_name": "_Test Company",
+            "country": "India",
+            "default_currency": "INR",
+            "doctype": "Company",
+            "domain": "Manufacturing",
+            "chart_of_accounts": "Standard",
+            "enable_perpetual_inventory": 0
+        }
+    ],
+    "Item": [
+        {
+            "description": "_Test Sample Item",
+            "doctype": "Item",
+            "is_stock_item": 1,
+            "item_code": "_Test Sample Item",
+            "item_name": "_Test Sample Item",
+            "item_group": "All Item Groups",
+            "valuation_rate": 100,
+            "stock_uom": "Nos",
+            "uoms": [
+                {
+                    "conversion_factor": 1,
+                    "uom": "Nos",
+                    "name": "_Test Sample Item"
+                }
+            ],
+            "item_defaults": [
+                {
+                    "name": "_Test Sample Item",
+                    "company": "_Test Company",
+                    "default_warehouse": "Stores - _TC",
+                    "expense_account": "Cost of Goods Sold - _TC",
+                    "buying_cost_center": "Main - _TC",
+                    "selling_cost_center": "Main - _TC",
+                    "income_account": "Sales - _TC"
+                }
+            ]
+        }
+    ],
+    "Payment Term": [
+        {
+            "payment_term_name": "Test 1P Discount",
+            "invoice_portion": 100.0,
+            "due_date_based_on": "Day(s) after invoice date",
+            "credit_days": 30,
+            "discount_type": "Percentage",
+            "discount_validity_based_on": "Day(s) after invoice date",
+            "discount": 5.0,
+            "discount_validity": 7
+        }
+    ],
+    "Payment Terms Template": [
+        {
+            "template_name": "Test Payment Term Template",
+            "terms": [
+                {
+                    "payment_term": "Test 1P Discount",
+                    "invoice_portion": 100.0
+                }
+            ]
+        }
+    ],
+    "Supplier": [
+        {
+            "name": "Common Party Pvt Ltd",
+            "supplier_name": "Common Party Pvt Ltd",
+            "supplier_type": "Company"
+        },
+        {
+            "name": "Always Non-Compliant",
+            "supplier_name": "Always Non-Compliant",
+            "supplier_type": "Company"
+        },
+        {
+            "name": "Defective Goods LLP",
+            "supplier_name": "Defective Goods LLP",
+            "supplier_type": "Company"
+        },
+        {
+            "name": "Eco Stationery",
+            "supplier_name": "Eco Stationery",
+            "supplier_type": "Company"
+        },
+        {
+            "name": "Honest Consultant",
+            "supplier_name": "Honest Consultant",
+            "supplier_type": "Company"
+        },
+        {
+            "name": "Needs Quick Money Ltd",
+            "supplier_name": "Needs Quick Money Ltd",
+            "supplier_type": "Company",
+            "payment_terms": "Test Payment Term Template"
+        },
+        {
+            "name": "Complex Terms LLP",
+            "supplier_name": "Complex Terms LLP",
+            "supplier_type": "Company"
+        },
+        {
+            "name": "Messy Books Pvt Ltd",
+            "supplier_name": "Messy Books Pvt Ltd",
+            "supplier_type": "Company"
+        }
+    ]
+}

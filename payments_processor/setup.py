@@ -1,12 +1,11 @@
 import click
+
 import frappe
 from frappe.custom.doctype.custom_field.custom_field import (
     create_custom_fields as make_custom_fields,
 )
 
-from payments_processor.payments_processor.constants.custom_fields import (
-    CUSTOM_FIELDS,
-)
+from payments_processor.payments_processor.constants.custom_fields import CUSTOM_FIELDS
 from payments_processor.payments_processor.constants.email_template import (
     EMAIL_TEMPLATES,
 )
