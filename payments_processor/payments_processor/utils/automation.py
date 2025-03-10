@@ -61,6 +61,9 @@ def time_now():
 
 class PaymentsProcessor:
     def __init__(self, setting, filters=None):
+        if isinstance(setting, str):
+            setting = frappe.get_doc(CONFIGURATION_DOCTYPE, setting)
+
         self.setting = setting
         self.filters = filters or frappe._dict()
 

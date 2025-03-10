@@ -106,5 +106,37 @@
             "supplier_name": "Messy Books Pvt Ltd",
             "supplier_type": "Company"
         }
+    ],
+    "Account": [
+        {
+            "account_name": "Test Account",
+            "parent_account": "Bank Accounts - _TC",
+            "company": "_Test Company"
+        }
+    ],
+    "Bank": [
+        {
+            "bank_name": "Test Bank"
+        }
+    ],
+    "Bank Account": [
+        {
+            "account_name": "Test Bank Account",
+            "bank": "Test Bank",
+            "company": "_Test Company"
+        }
+    ],
+    "Payments Processor Configuration": [
+        {
+            "bank_account": "Test Bank Account - Test Bank",
+            "company": "_Test Company",
+            "automate_on_monday": 1,
+            "automate_on_tuesday": 1,
+            "automate_on_wednesday": 1,
+            "automate_on_thursday": 1,
+            "automate_on_friday": 1,
+            "automate_on_saturday": 1,
+            "automate_on_sunday": 1
+        }
     ]
 }
