@@ -10,8 +10,8 @@ repos:
         files: "payments_processor.*"
         exclude: ".*json$|.*txt$|.*csv|.*md"
       - id: check-yaml
-      # - id: no-commit-to-branch
-      #   args: ["--branch", "develop"]
+      - id: no-commit-to-branch
+        args: ["--branch", "version-15"]
       - id: check-merge-conflict
       - id: check-ast
 
