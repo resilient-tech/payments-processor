@@ -407,22 +407,38 @@ class TestPaymentsProcessor(IntegrationTestCase):
                 "party_type": "Supplier",
                 "party": ["in", list(parties)],
             },
+            order_by="creation desc",
         )
 
     def assertPartialDict(self, d1, d2):
         self.assertIsInstance(d1, dict, "First argument is not a dictionary")
         self.assertIsInstance(d2, dict, "Second argument is not a dictionary")
 
-        if d1 != d2:
-            for key in d1:
-                if isinstance(d1[key], list):
-                    for i, item in enumerate(d1[key]):
-                        self.assertPartialDict(item, d2[key][i])
-                elif isinstance(d1[key], dict):
-                    self.assertPartialDict(d1[key], d2[key])
-                elif d1[key] != d2[key]:
-                    standardMsg = f"{key}: {d1[key]} != {d2[key]}"
-                    self.fail(standardMsg)
+        for key, value in d1.items():
+            if isinstance(value, list):
+                self.assertIsInstance(
+                    d2[key],
+                    list,
+                    f"Key '{key}' is not a list in second dictionary",
+                )
+                self.assertLessEqual(
+                    len(value),
+                    len(d2[key]),
+                    f"List at key '{key}' is shorter than expected",
+                )
+
+                for i, item in enumerate(value):
+                    self.assertPartialDict(item, d2[key][i])
+
+            elif isinstance(d1[key], dict):
+                self.assertIsInstance(
+                    d2[key], dict, f"Key '{key}' is not a dict in second dictionary"
+                )
+                self.assertPartialDict(d1[key], d2[key])
+            else:
+                self.assertEqual(
+                    value, d2[key], f"Mismatch at key '{key}': {value} != {d2[key]}"
+                )
 
 
 def make_purchase_invoices(invoices):
