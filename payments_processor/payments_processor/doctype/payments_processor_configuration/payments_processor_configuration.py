@@ -1,11 +1,11 @@
 # Copyright (c) 2024, Resilient Tech and contributors
 # For license information, please see license.txt
 
-import frappe  # noqa: I001
+import frappe
+from erpnext import get_default_cost_center
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import get_link_to_form
-from erpnext import get_default_cost_center
 
 # Auto Payment Setting
 # Payouts not required

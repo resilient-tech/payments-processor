@@ -1,4 +1,4 @@
-import frappe  # noqa: I001
+import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, today
 
@@ -345,9 +345,8 @@ class TestPaymentsProcessor(IntegrationTestCase):
         super().setUpClass()
         cls.payment_configuration_setting = frappe.get_all(
             CONFIGURATION_DOCTYPE,
-            fields="*",
             filters={"company": TEST_COMPANY, "disabled": 0},
-        )[0]
+        )[0].name
 
     def tearDown(self):
         frappe.db.rollback()
@@ -395,7 +394,7 @@ class TestPaymentsProcessor(IntegrationTestCase):
 
         make_purchase_invoices(GROUP_SUPPLIER_INVOICES)
 
-        payments_processor = PaymentsProcessor(self.payment_configuration_setting.name)
+        payments_processor = PaymentsProcessor(self.payment_configuration_setting)
         payments_processor.process_invoices()
         payments_processor.create_payments()
 

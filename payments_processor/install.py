@@ -1,5 +1,4 @@
 import click
-
 import frappe
 
 from payments_processor.constants import BUG_REPORT_URL

@@ -1,10 +1,10 @@
-import calendar  # noqa: I001
+import calendar
 from collections import defaultdict
 from functools import cached_property
 
-from pypika import Order
-
 import frappe
+from erpnext import get_default_cost_center
+from erpnext.accounts.utils import get_balance_on
 from frappe import _
 from frappe.core.doctype.role.role import get_info_based_on_role
 from frappe.email.doctype.email_template.email_template import get_email_template
@@ -15,8 +15,7 @@ from frappe.utils import (
     getdate,
     now_datetime,
 )
-from erpnext import get_default_cost_center
-from erpnext.accounts.utils import get_balance_on
+from pypika import Order
 
 from payments_processor.constants import CONFIGURATION_DOCTYPE
 from payments_processor.payments_processor.constants.roles import ROLE_PROFILE
@@ -137,7 +136,6 @@ class PaymentsProcessor:
         ):
 
             def get_invoice_group(invoice_group):
-                print("setting", self.setting.group_payments_by_supplier)
                 if self.setting.group_payments_by_supplier:
                     return [invoice_group]
 
@@ -164,7 +162,6 @@ class PaymentsProcessor:
                     update_payment_info(invoice_group, pe)
 
                 except Exception:
-                    print("in except")
                     self.handle_pe_creation_failed(supplier_name)
                     frappe.log_error(
                         title=_(
@@ -385,24 +382,6 @@ class PaymentsProcessor:
         invalid = self.processed_invoices.setdefault("invalid", frappe._dict())
         valid = self.processed_invoices.setdefault("valid", frappe._dict())
 
-        supplier_checks = [
-            lambda sup, _: self.is_supplier_disabled(sup),
-            lambda sup, _: self.is_supplier_blocked(sup),
-            lambda sup, _: self.is_auto_generate_disabled(sup),
-            lambda _, inv: self.payment_entry_exists(inv),
-            lambda sup, inv: self.is_payment_exceeding_supplier_outstanding(sup, inv),
-            lambda _, inv: (
-                self.is_auto_generate_threshold_exceeded(inv.amount_to_pay)
-                if not self.setting.group_payments_by_supplier
-                else None
-            ),
-        ]
-
-        invoice_checks = [
-            self.is_invoice_blocked,
-            self.exclude_foreign_currency_invoices,
-        ]
-
         for invoice in self.invoices.values():
             supplier = self.suppliers.get(invoice.supplier)
             invoice.amount_to_pay = (
@@ -416,48 +395,54 @@ class PaymentsProcessor:
                 )
                 continue
 
-            continue_outer = False
-            for check in supplier_checks:
-                if msg := check(supplier, invoice):
-                    invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
-                    continue_outer = True
-                    break  # No need to check further if already invalid
+            if msg := self.is_supplier_disabled(supplier):
+                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
+                continue
 
-            if continue_outer:
+            if msg := self.is_supplier_blocked(supplier):
+                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
+                continue
+
+            if msg := self.is_auto_generate_disabled(supplier):
+                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
+                continue
+
+            # run before outstanding check (for better error message)
+            # since outstanding amount is adjusted based on draft PEs
+            if msg := self.payment_entry_exists(invoice):
+                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
+                continue
+
+            if msg := self.is_payment_exceeding_supplier_outstanding(supplier, invoice):
+                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
+                continue
+
+            if not self.setting.group_payments_by_supplier and (
+                msg := self.is_auto_generate_threshold_exceeded(invoice.amount_to_pay)
+            ):
+                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                 continue
 
             # invoice validations
-            continue_outer = False
-            for check in invoice_checks:
-                if msg := check(invoice):
-                    invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
-                    continue_outer = True
-                    break
-
-            if continue_outer:
+            if msg := self.is_invoice_blocked(invoice):
+                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                 continue
 
-            for fn in frappe.get_hooks("filter_auto_generate_payments"):
+            if msg := self.exclude_foreign_currency_invoices(invoice):
+                invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
+                continue
+
+            functions = frappe.get_hooks("filter_auto_generate_payments")
+            for fn in functions:
                 if msg := frappe.call(fn, supplier=supplier, invoice=invoice):
                     invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                     break
+
             else:
                 self.supplier_paid_amount[invoice.supplier] += invoice.amount_to_pay
+
                 invoice.auto_generate = 1
                 valid.setdefault(invoice.supplier, []).append(invoice)
-
-        if not self.setting.group_payments_by_supplier:
-            return
-
-        # Grouped PE
-        for supplier_name, paid_amount in self.supplier_paid_amount.items():
-            supplier = self.suppliers[supplier_name]
-
-            if msg := self.is_auto_generate_threshold_exceeded(paid_amount):
-                for invoice in valid[supplier_name]:
-                    invoice.update({**msg, "auto_generate": 0})
-
-                invalid.setdefault(supplier_name, []).extend(valid.pop(supplier_name))
 
     def process_auto_submit(self):
         if not self.setting.auto_submit_entries:
@@ -493,7 +478,6 @@ class PaymentsProcessor:
                     invoice.update({**msg, "auto_submit": 0})
 
     def create_payment_entry(self, supplier_name, invoice_list):
-        # TODO: how do we handle failure of payment entry
         if not self.paid_from:
             frappe.throw(
                 _("Please set Company Account in Bank Account: {0}").format(

@@ -1,4 +1,4 @@
-from contextlib import contextmanager  # noqa: I001
+from contextlib import contextmanager
 
 import frappe
 from frappe.tests import IntegrationTestCase
@@ -6,8 +6,8 @@ from frappe.tests import IntegrationTestCase
 
 @IntegrationTestCase.registerAs(staticmethod)
 @contextmanager
-def change_settings(doctype, doc, settings_dict=None, /, commit=False, **settings):
-    doc = frappe.get_doc(doctype, doc)
+def change_settings(doctype, docname, settings_dict=None, /, commit=False, **settings):
+    doc = frappe.get_doc(doctype, docname)
     if settings_dict is None:
         settings_dict = settings
 

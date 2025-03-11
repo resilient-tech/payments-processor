@@ -10,7 +10,6 @@ before_uninstall = "payments_processor.uninstall.before_uninstall"
 
 before_tests = "payments_processor.tests.before_tests"
 
-# TODO: Make this configurable
 scheduler_events = {
     "all": [
         "payments_processor.payments_processor.utils.automation.autocreate_payment_entry"
