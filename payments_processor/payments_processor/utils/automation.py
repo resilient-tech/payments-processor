@@ -8,7 +8,13 @@ import frappe
 from frappe import _
 from frappe.core.doctype.role.role import get_info_based_on_role
 from frappe.email.doctype.email_template.email_template import get_email_template
-from frappe.utils import add_days, get_timedelta, getdate, now_datetime
+from frappe.utils import (
+    add_days,
+    get_link_to_form,
+    get_timedelta,
+    getdate,
+    now_datetime,
+)
 from erpnext import get_default_cost_center
 from erpnext.accounts.utils import get_balance_on
 
@@ -131,6 +137,7 @@ class PaymentsProcessor:
         ):
 
             def get_invoice_group(invoice_group):
+                print("setting", self.setting.group_payments_by_supplier)
                 if self.setting.group_payments_by_supplier:
                     return [invoice_group]
 
@@ -157,6 +164,7 @@ class PaymentsProcessor:
                     update_payment_info(invoice_group, pe)
 
                 except Exception:
+                    print("in except")
                     self.handle_pe_creation_failed(supplier_name)
                     frappe.log_error(
                         title=_(
@@ -486,6 +494,13 @@ class PaymentsProcessor:
 
     def create_payment_entry(self, supplier_name, invoice_list):
         # TODO: how do we handle failure of payment entry
+        if not self.paid_from:
+            frappe.throw(
+                _("Please set Company Account in Bank Account: {0}").format(
+                    get_link_to_form("Bank Account", self.setting.bank_account)
+                )
+            )
+
         pe = frappe.new_doc("Payment Entry")
 
         paid_amount = 0
@@ -545,7 +560,7 @@ class PaymentsProcessor:
             {
                 "account": self.discount_account,
                 "cost_center": default_cost_center,  # TODO: could be different for each invoice (for now we are using Default Cost Center as specified in Company)
-                "amount": total_discount,
+                "amount": -total_discount,
             },
         )
 

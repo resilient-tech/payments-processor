@@ -112,6 +112,13 @@
             "account_name": "Test Account",
             "parent_account": "Bank Accounts - _TC",
             "company": "_Test Company"
+        },
+        {
+            "account_name": "Test Company Account",
+            "parent_account": "Accounts Payable - _TC",
+            "company": "_Test Company",
+            "is_group": 0,
+            "account_type": "Bank"
         }
     ],
     "Bank": [

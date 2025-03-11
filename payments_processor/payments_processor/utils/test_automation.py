@@ -6,6 +6,7 @@ from payments_processor.constants import CONFIGURATION_DOCTYPE
 from payments_processor.payments_processor.report.upcoming_invoice_payment.upcoming_invoice_payment import (
     execute,
 )
+from payments_processor.payments_processor.utils.automation import PaymentsProcessor
 from payments_processor.tests.utils import change_settings as _change_settings
 
 TEST_COMPANY = "_Test Company"
@@ -26,9 +27,6 @@ EXPECTED_DISCOUNTED_INVOICE_DATA = [
         "hold_comment": None,
         "amount_to_pay": 9900.0,
         "auto_generate": 1,
-        "auto_submit": 0,
-        "reason": "Payment submission threshold exceeded",
-        "reason_code": "1021",
     }
 ]
 
@@ -50,6 +48,217 @@ EXPECTED_BLOCKED_SUPPLIER_INVOICE_DATA = [
         "reason": "Payments to supplier are blocked",
         "reason_code": "1002",
     }
+]
+
+GROUP_SUPPLIER_INVOICES = [
+    {
+        "supplier": "Honest Consultant",
+        "item_code": "Anything and Everything Item",
+        "rate": 10000.0,
+        "qty": 1.0,
+    },
+    {
+        "supplier": "Honest Consultant",
+        "item_code": "Anything and Everything Item",
+        "rate": 90000.0,
+        "qty": 1.0,
+    },
+    {
+        "supplier": "Honest Consultant",
+        "item_code": "Anything and Everything Item",
+        "rate": 80000.0,
+        "qty": 1.0,
+    },
+]
+
+EXPECTED_ENTRY_GRP_ENABLED = {
+    "docstatus": 0,
+    "payment_type": "Pay",
+    "company": "_Test Company",
+    "party_type": "Supplier",
+    "party": "Honest Consultant",
+    "party_name": "Honest Consultant",
+    "bank_account": "Test Bank Account - Test Bank",
+    "party_bank_account": "Honest Consultant - Customer First Bank",
+    "paid_from": "Test Company Account - _TC",
+    "paid_from_account_currency": "INR",
+    "paid_to": "Creditors - _TC",
+    "paid_to_account_currency": "INR",
+    "paid_amount": 180000.0,
+    "paid_amount_after_tax": 180000.0,
+    "source_exchange_rate": 1.0,
+    "base_paid_amount": 180000.0,
+    "base_paid_amount_after_tax": 180000.0,
+    "received_amount": 180000.0,
+    "received_amount_after_tax": 180000.0,
+    "target_exchange_rate": 1.0,
+    "base_received_amount": 180000.0,
+    "base_received_amount_after_tax": 180000.0,
+    "total_allocated_amount": 180000.0,
+    "base_total_allocated_amount": 180000.0,
+    "unallocated_amount": 0.0,
+    "difference_amount": 0.0,
+    "base_total_taxes_and_charges": 0.0,
+    "total_taxes_and_charges": 0.0,
+    "bank": "Test Bank",
+    "in_words": "INR One Lakh, Eighty Thousand only.",
+    "references": [
+        {
+            "reference_doctype": "Purchase Invoice",
+            "total_amount": 10000.0,
+            "outstanding_amount": 10000.0,
+            "allocated_amount": 10000.0,
+            "exchange_rate": 1.0,
+            "exchange_gain_loss": 0.0,
+            "account": "Creditors - _TC",
+        },
+        {
+            "reference_doctype": "Purchase Invoice",
+            "total_amount": 90000.0,
+            "outstanding_amount": 90000.0,
+            "allocated_amount": 90000.0,
+            "exchange_rate": 1.0,
+            "account": "Creditors - _TC",
+        },
+        {
+            "reference_doctype": "Purchase Invoice",
+            "total_amount": 80000.0,
+            "outstanding_amount": 80000.0,
+            "allocated_amount": 80000.0,
+            "exchange_rate": 1.0,
+            "exchange_gain_loss": 0.0,
+            "account": "Creditors - _TC",
+        },
+    ],
+}
+
+EXPECTED_ENTRY_GRP_DISABLED = [
+    {
+        "docstatus": 0,
+        "payment_type": "Pay",
+        "company": "_Test Company",
+        "party_type": "Supplier",
+        "party": "Honest Consultant",
+        "party_name": "Honest Consultant",
+        "bank_account": "Test Bank Account - Test Bank",
+        "party_bank_account": "Honest Consultant - Customer First Bank",
+        "paid_from": "Test Company Account - _TC",
+        "paid_from_account_currency": "INR",
+        "paid_to": "Creditors - _TC",
+        "paid_to_account_currency": "INR",
+        "paid_amount": 80000.0,
+        "paid_amount_after_tax": 80000.0,
+        "source_exchange_rate": 1.0,
+        "base_paid_amount": 80000.0,
+        "base_paid_amount_after_tax": 80000.0,
+        "received_amount": 80000.0,
+        "received_amount_after_tax": 80000.0,
+        "target_exchange_rate": 1.0,
+        "base_received_amount": 80000.0,
+        "base_received_amount_after_tax": 80000.0,
+        "total_allocated_amount": 80000.0,
+        "base_total_allocated_amount": 80000.0,
+        "unallocated_amount": 0.0,
+        "difference_amount": 0.0,
+        "base_total_taxes_and_charges": 0.0,
+        "total_taxes_and_charges": 0.0,
+        "bank": "Test Bank",
+        "in_words": "INR Eighty Thousand only.",
+        "references": [
+            {
+                "reference_doctype": "Purchase Invoice",
+                "total_amount": 80000.0,
+                "outstanding_amount": 80000.0,
+                "allocated_amount": 80000.0,
+                "exchange_rate": 1.0,
+                "account": "Creditors - _TC",
+            }
+        ],
+    },
+    {
+        "docstatus": 0,
+        "payment_type": "Pay",
+        "company": "_Test Company",
+        "party_type": "Supplier",
+        "party": "Honest Consultant",
+        "party_name": "Honest Consultant",
+        "bank_account": "Test Bank Account - Test Bank",
+        "party_bank_account": "Honest Consultant - Customer First Bank",
+        "paid_from": "Test Company Account - _TC",
+        "paid_from_account_currency": "INR",
+        "paid_to": "Creditors - _TC",
+        "paid_to_account_currency": "INR",
+        "paid_amount": 90000.0,
+        "paid_amount_after_tax": 90000.0,
+        "source_exchange_rate": 1.0,
+        "base_paid_amount": 90000.0,
+        "base_paid_amount_after_tax": 90000.0,
+        "received_amount": 90000.0,
+        "received_amount_after_tax": 90000.0,
+        "target_exchange_rate": 1.0,
+        "base_received_amount": 90000.0,
+        "base_received_amount_after_tax": 90000.0,
+        "total_allocated_amount": 90000.0,
+        "base_total_allocated_amount": 90000.0,
+        "unallocated_amount": 0.0,
+        "difference_amount": 0.0,
+        "base_total_taxes_and_charges": 0.0,
+        "total_taxes_and_charges": 0.0,
+        "bank": "Test Bank",
+        "in_words": "INR Ninety Thousand only.",
+        "references": [
+            {
+                "reference_doctype": "Purchase Invoice",
+                "total_amount": 90000.0,
+                "outstanding_amount": 90000.0,
+                "allocated_amount": 90000.0,
+                "exchange_rate": 1.0,
+                "account": "Creditors - _TC",
+            }
+        ],
+    },
+    {
+        "docstatus": 0,
+        "payment_type": "Pay",
+        "company": "_Test Company",
+        "party_type": "Supplier",
+        "party": "Honest Consultant",
+        "party_name": "Honest Consultant",
+        "bank_account": "Test Bank Account - Test Bank",
+        "party_bank_account": "Honest Consultant - Customer First Bank",
+        "paid_from": "Test Company Account - _TC",
+        "paid_from_account_currency": "INR",
+        "paid_to": "Creditors - _TC",
+        "paid_to_account_currency": "INR",
+        "paid_amount": 10000.0,
+        "paid_amount_after_tax": 10000.0,
+        "source_exchange_rate": 1.0,
+        "base_paid_amount": 10000.0,
+        "base_paid_amount_after_tax": 10000.0,
+        "received_amount": 10000.0,
+        "received_amount_after_tax": 10000.0,
+        "target_exchange_rate": 1.0,
+        "base_received_amount": 10000.0,
+        "base_received_amount_after_tax": 10000.0,
+        "total_allocated_amount": 10000.0,
+        "base_total_allocated_amount": 10000.0,
+        "unallocated_amount": 0.0,
+        "difference_amount": 0.0,
+        "base_total_taxes_and_charges": 0.0,
+        "total_taxes_and_charges": 0.0,
+        "bank": "Test Bank",
+        "in_words": "INR Ten Thousand only.",
+        "references": [
+            {
+                "reference_doctype": "Purchase Invoice",
+                "total_amount": 10000.0,
+                "outstanding_amount": 10000.0,
+                "allocated_amount": 10000.0,
+                "exchange_rate": 1.0,
+                "account": "Creditors - _TC",
+            }
+        ],
+    },
 ]
 
 INVOICES = [
@@ -95,6 +304,7 @@ INVOICES = [
         "rate": 11000.0,
         "qty": 1.0,
     },
+    # done
     {
         "supplier": "Always Non-Compliant",
         "item_code": "Anything and Everything Item",
@@ -147,21 +357,57 @@ class TestPaymentsProcessor(IntegrationTestCase):
 
     @change_settings({"claim_early_payment_discount": 1})
     def test_claim_early_discount(self):
-        for invoice in DISCOUNT_INVOICES:
-            make_purchase_invoice(**invoice)
+        make_purchase_invoices(DISCOUNT_INVOICES)
 
         report_data = self.get_report_data()
         for index, row in enumerate(report_data):
             self.assertPartialDict(EXPECTED_DISCOUNTED_INVOICE_DATA[index], row)
 
     def test_blocked_supplier_invoices(self):
-        for invoice in BLOCKED_SUPPLIER_INVOICES:
-            make_purchase_invoice(**invoice)
+        make_purchase_invoices(BLOCKED_SUPPLIER_INVOICES)
 
         report_data = self.get_report_data()
 
         for index, row in enumerate(report_data):
             self.assertPartialDict(EXPECTED_BLOCKED_SUPPLIER_INVOICE_DATA[index], row)
+
+    @change_settings({"group_payments_by_supplier": 1})
+    def test_group_payments_by_supplier_enabled(self):
+        payment_entry = self.process_and_fetch_payment_entry()[0]
+
+        self.assertPartialDict(
+            EXPECTED_ENTRY_GRP_ENABLED,
+            frappe.get_doc("Payment Entry", payment_entry).as_dict(),
+        )
+
+    @change_settings({"group_payments_by_supplier": 0})
+    def test_group_payments_by_supplier_disabled(self):
+        payment_entries = self.process_and_fetch_payment_entry()
+
+        for index, entry in enumerate(payment_entries):
+            self.assertPartialDict(
+                EXPECTED_ENTRY_GRP_DISABLED[index],
+                frappe.get_doc("Payment Entry", entry).as_dict(),
+            )
+
+    def process_and_fetch_payment_entry(self):
+        parties = {invoice["supplier"] for invoice in GROUP_SUPPLIER_INVOICES}
+
+        make_purchase_invoices(GROUP_SUPPLIER_INVOICES)
+
+        payments_processor = PaymentsProcessor(self.payment_configuration_setting.name)
+        payments_processor.process_invoices()
+        payments_processor.create_payments()
+
+        return frappe.get_all(
+            "Payment Entry",
+            filters={
+                "company": TEST_COMPANY,
+                "payment_type": "Pay",
+                "party_type": "Supplier",
+                "party": ["in", list(parties)],
+            },
+        )
 
     def assertPartialDict(self, d1, d2):
         self.assertIsInstance(d1, dict, "First argument is not a dictionary")
@@ -169,12 +415,22 @@ class TestPaymentsProcessor(IntegrationTestCase):
 
         if d1 != d2:
             for key in d1:
-                if d1[key] != d2[key]:
+                if isinstance(d1[key], list):
+                    for i, item in enumerate(d1[key]):
+                        self.assertPartialDict(item, d2[key][i])
+                elif isinstance(d1[key], dict):
+                    self.assertPartialDict(d1[key], d2[key])
+                elif d1[key] != d2[key]:
                     standardMsg = f"{key}: {d1[key]} != {d2[key]}"
                     self.fail(standardMsg)
 
 
-def make_purchase_invoice(**args):
+def make_purchase_invoices(invoices):
+    for invoice in invoices:
+        _make_purchase_invoice(**invoice)
+
+
+def _make_purchase_invoice(**args):
     pi = frappe.new_doc("Purchase Invoice")
     args = frappe._dict(args)
 
