@@ -1,5 +1,5 @@
 import frappe
-from frappe.tests import IntegrationTestCase
+from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_days, today
 
 from payments_processor.constants import CONFIGURATION_DOCTYPE
@@ -339,7 +339,7 @@ def change_settings(settings):
     return decorator
 
 
-class TestPaymentsProcessor(IntegrationTestCase):
+class TestPaymentsProcessor(FrappeTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

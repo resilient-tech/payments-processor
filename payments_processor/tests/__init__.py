@@ -1,5 +1,5 @@
 import frappe
-from frappe.tests.utils import make_test_objects
+from frappe.test_runner import make_test_objects
 
 
 def before_tests():
