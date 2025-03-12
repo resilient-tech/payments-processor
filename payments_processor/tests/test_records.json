@@ -107,6 +107,11 @@
             "name": "Messy Books Pvt Ltd",
             "supplier_name": "Messy Books Pvt Ltd",
             "supplier_type": "Company"
+        },
+        {
+            "name": "Disallowed Supplier",
+            "supplier_name": "Disallowed Supplier",
+            "supplier_type": "Company"
         }
     ],
     "Account": [
@@ -137,10 +142,10 @@
             "account": "Test Company Account - _TC"
         },
         {
-            "account_name":"Honest Consultant",
+            "account_name": "Honest Consultant",
             "bank": "Test Bank",
             "party_type": "Supplier",
-            "party":"Honest Consultant"
+            "party": "Honest Consultant"
         }
     ],
     "Payments Processor Configuration": [

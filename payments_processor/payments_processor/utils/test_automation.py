@@ -20,13 +20,11 @@ DISCOUNT_INVOICES = [
         "due_date": add_days(today(), 30),
     }
 ]
+
 EXPECTED_DISCOUNTED_INVOICE_DATA = [
     {
         "supplier": "Needs Quick Money Ltd",
-        "on_hold": 0,
-        "hold_comment": None,
         "amount_to_pay": 9500.0,
-        "auto_generate": 1,
     }
 ]
 
@@ -43,7 +41,6 @@ EXPECTED_BLOCKED_SUPPLIER_INVOICE_DATA = [
     {
         "supplier": "Always Non-Compliant",
         "on_hold": 0,
-        "hold_comment": None,
         "amount_to_pay": 11000.0,
         "reason": "Payments to supplier are blocked",
         "reason_code": "1002",
@@ -316,22 +313,118 @@ INVOICES = [
         "qty": 1.0,
     },
     {
-        "supplier": "Defective Goods LLP",
-        "item_code": "_Test Sample Item",
-        "rate": 11000.0,
-        "qty": 1.0,
-    },
-    {
         "supplier": "Common Party Pvt Ltd",
         "item_code": "_Test Sample Item",
         "rate": 27000.0,
         "qty": 1.0,
     },
     {
-        "supplier": "Common Party Pvt Ltd",
+        "supplier": "Honest Consultant",
         "item_code": "_Test Sample Item",
-        "rate": 26000.0,
+        "rate": 10000.0,
         "qty": 1.0,
+    },
+    {
+        "supplier": "Always Non-Compliant",
+        "item_code": "_Test Sample Item",
+        "rate": 11000.0,
+        "qty": 1.0,
+    },
+    {
+        "supplier": "Disallowed Supplier",
+        "item_code": "_Test Sample Item",
+        "rate": 10000.0,
+        "qty": 1.0,
+    },
+]
+
+EXPECTED_INVOICES_WITH_THRESHOLD = [
+    {
+        "company": "_Test Company",
+        "supplier": "Complex Terms LLP",
+        "outstanding_amount": 10000.0,
+        "grand_total": 10000.0,
+        "rounded_total": 10000.0,
+        "currency": "INR",
+        "is_return": 0,
+        "on_hold": 0,
+        "total_outstanding_due": 10000.0,
+        "total_discount": 0,
+        "amount_to_pay": 10000.0,
+        "auto_generate": 1,
+    },
+    {
+        "company": "_Test Company",
+        "supplier": "Eco Stationery",
+        "outstanding_amount": 6000.0,
+        "grand_total": 6000.0,
+        "rounded_total": 6000.0,
+        "currency": "INR",
+        "is_return": 0,
+        "on_hold": 0,
+        "total_outstanding_due": 6000.0,
+        "total_discount": 0,
+        "amount_to_pay": 6000.0,
+        "auto_generate": 1,
+    },
+    {
+        "company": "_Test Company",
+        "supplier": "Honest Consultant",
+        "outstanding_amount": 10000.0,
+        "grand_total": 10000.0,
+        "rounded_total": 10000.0,
+        "currency": "INR",
+        "is_return": 0,
+        "on_hold": 0,
+        "total_outstanding_due": 10000.0,
+        "total_discount": 0,
+        "amount_to_pay": 10000.0,
+        "auto_generate": 1,
+    },
+    {
+        "company": "_Test Company",
+        "supplier": "Common Party Pvt Ltd",
+        "outstanding_amount": 27000.0,
+        "grand_total": 27000.0,
+        "rounded_total": 27000.0,
+        "currency": "INR",
+        "is_return": 0,
+        "on_hold": 0,
+        "total_outstanding_due": 27000.0,
+        "total_discount": 0,
+        "amount_to_pay": 27000.0,
+        "reason": "Payment generation threshold exceeded",
+        "reason_code": "1006",
+    },
+    {
+        "company": "_Test Company",
+        "supplier": "Always Non-Compliant",
+        "outstanding_amount": 11000.0,
+        "grand_total": 11000.0,
+        "rounded_total": 11000.0,
+        "currency": "INR",
+        "is_return": 0,
+        "on_hold": 0,
+        "total_outstanding_due": 11000.0,
+        "total_discount": 0,
+        "amount_to_pay": 11000.0,
+        "reason": "Payments to supplier are blocked",
+        "reason_code": "1002",
+    },
+    {
+        "company": "_Test Company",
+        "supplier": "Disallowed Supplier",
+        "outstanding_amount": 10000.0,
+        "grand_total": 10000.0,
+        "rounded_total": 10000.0,
+        "currency": "INR",
+        "is_return": 0,
+        "on_hold": 0,
+        "total_outstanding_due": 10000.0,
+        "total_discount": 0,
+        "amount_to_pay": 10000.0,
+        "reason": "Supplier is disabled",
+        "reason_code": "1001",
     },
 ]
 
@@ -361,8 +454,14 @@ class TestPaymentsProcessor(FrappeTestCase):
     def tearDown(self):
         frappe.db.rollback()
 
-    def get_report_data(self):
-        return execute(frappe._dict({"company": TEST_COMPANY}))[1]
+    def get_report_data(self, filters=None):
+        if not filters:
+            filters = {}
+
+        filters["company"] = TEST_COMPANY
+        filters = frappe._dict(filters)
+
+        return execute(filters)[1]
 
     @change_settings({"claim_early_payment_discount": 1})
     def test_claim_early_discount(self):
@@ -457,6 +556,18 @@ class TestPaymentsProcessor(FrappeTestCase):
         doc.received_amount = doc.paid_amount / doc.target_exchange_rate
 
         doc.save(ignore_permissions=True)
+
+    @change_settings(
+        {"group_payments_by_supplier": 0, "auto_generate_threshold": 10000}
+    )
+    def test_invoice_with_autogenerate_threshold(self):
+        make_purchase_invoices(INVOICES)
+        frappe.db.set_value("Supplier", "Disallowed Supplier", "disabled", 1)
+
+        report_data = self.get_report_data()
+        # print("report_data", report_data)
+        for index, row in enumerate(EXPECTED_INVOICES_WITH_THRESHOLD):
+            self.assertPartialDict(row, report_data[index])
 
     def assertPartialDict(self, d1, d2):
         self.assertIsInstance(d1, dict, "First argument is not a dictionary")

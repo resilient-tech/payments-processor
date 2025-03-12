@@ -422,6 +422,7 @@ class PaymentsProcessor:
             ):
                 invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                 continue
+            # frappe.log(invoice.amount_to_pay)
 
             # invoice validations
             if msg := self.is_invoice_blocked(invoice):
