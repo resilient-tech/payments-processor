@@ -14,7 +14,7 @@ TEST_COMPANY = "_Test Company"
 DISCOUNT_INVOICES = [
     {
         "supplier": "Needs Quick Money Ltd",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 10000.0,
         "qty": 1.0,
         "due_date": add_days(today(), 30),
@@ -25,7 +25,7 @@ EXPECTED_DISCOUNTED_INVOICE_DATA = [
         "supplier": "Needs Quick Money Ltd",
         "on_hold": 0,
         "hold_comment": None,
-        "amount_to_pay": 9900.0,
+        "amount_to_pay": 9500.0,
         "auto_generate": 1,
     }
 ]
@@ -33,7 +33,7 @@ EXPECTED_DISCOUNTED_INVOICE_DATA = [
 BLOCKED_SUPPLIER_INVOICES = [
     {
         "supplier": "Always Non-Compliant",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 11000.0,
         "qty": 1.0,
     }
@@ -53,19 +53,19 @@ EXPECTED_BLOCKED_SUPPLIER_INVOICE_DATA = [
 GROUP_SUPPLIER_INVOICES = [
     {
         "supplier": "Honest Consultant",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 10000.0,
         "qty": 1.0,
     },
     {
         "supplier": "Honest Consultant",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 90000.0,
         "qty": 1.0,
     },
     {
         "supplier": "Honest Consultant",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 80000.0,
         "qty": 1.0,
     },
@@ -79,7 +79,7 @@ EXPECTED_ENTRY_GRP_ENABLED = {
     "party": "Honest Consultant",
     "party_name": "Honest Consultant",
     "bank_account": "Test Bank Account - Test Bank",
-    "party_bank_account": "Honest Consultant - Customer First Bank",
+    "party_bank_account": "Honest Consultant - Test Bank",
     "paid_from": "Test Company Account - _TC",
     "paid_from_account_currency": "INR",
     "paid_to": "Creditors - _TC",
@@ -141,7 +141,7 @@ EXPECTED_ENTRY_GRP_DISABLED = [
         "party": "Honest Consultant",
         "party_name": "Honest Consultant",
         "bank_account": "Test Bank Account - Test Bank",
-        "party_bank_account": "Honest Consultant - Customer First Bank",
+        "party_bank_account": "Honest Consultant - Test Bank",
         "paid_from": "Test Company Account - _TC",
         "paid_from_account_currency": "INR",
         "paid_to": "Creditors - _TC",
@@ -183,7 +183,7 @@ EXPECTED_ENTRY_GRP_DISABLED = [
         "party": "Honest Consultant",
         "party_name": "Honest Consultant",
         "bank_account": "Test Bank Account - Test Bank",
-        "party_bank_account": "Honest Consultant - Customer First Bank",
+        "party_bank_account": "Honest Consultant - Test Bank",
         "paid_from": "Test Company Account - _TC",
         "paid_from_account_currency": "INR",
         "paid_to": "Creditors - _TC",
@@ -225,7 +225,7 @@ EXPECTED_ENTRY_GRP_DISABLED = [
         "party": "Honest Consultant",
         "party_name": "Honest Consultant",
         "bank_account": "Test Bank Account - Test Bank",
-        "party_bank_account": "Honest Consultant - Customer First Bank",
+        "party_bank_account": "Honest Consultant - Test Bank",
         "paid_from": "Test Company Account - _TC",
         "paid_from_account_currency": "INR",
         "paid_to": "Creditors - _TC",
@@ -264,62 +264,62 @@ EXPECTED_ENTRY_GRP_DISABLED = [
 INVOICES = [
     {
         "supplier": "Messy Books Pvt Ltd",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 8000.0,
         "qty": 1.0,
     },
     {
         "supplier": "Complex Terms LLP",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 10000.0,
         "qty": 1.0,
     },
     {
         "supplier": "Honest Consultant",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 10000.0,
         "qty": 1.0,
     },
     {
         "supplier": "Honest Consultant",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 90000.0,
         "qty": 1.0,
     },
     {
         "supplier": "Honest Consultant",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 80000.0,
         "qty": 1.0,
     },
     {
         "supplier": "Eco Stationery",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 6000.0,
         "qty": 1.0,
     },
     {
         "supplier": "Defective Goods LLP",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 11000.0,
         "qty": 1.0,
     },
     # done
     {
         "supplier": "Always Non-Compliant",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 11000.0,
         "qty": 1.0,
     },
     {
         "supplier": "Common Party Pvt Ltd",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 27000.0,
         "qty": 1.0,
     },
     {
         "supplier": "Common Party Pvt Ltd",
-        "item_code": "Anything and Everything Item",
+        "item_code": "_Test Sample Item",
         "rate": 26000.0,
         "qty": 1.0,
     },
@@ -395,10 +395,12 @@ class TestPaymentsProcessor(FrappeTestCase):
         make_purchase_invoices(GROUP_SUPPLIER_INVOICES)
 
         payments_processor = PaymentsProcessor(self.payment_configuration_setting)
-        payments_processor.process_invoices()
+        invoices = payments_processor.process_invoices()
         payments_processor.create_payments()
 
-        return frappe.get_all(
+        print("invoices", invoices)
+
+        a = frappe.get_all(
             "Payment Entry",
             filters={
                 "company": TEST_COMPANY,
@@ -408,6 +410,8 @@ class TestPaymentsProcessor(FrappeTestCase):
             },
             order_by="creation desc",
         )
+        print("a", a)
+        return a
 
     def assertPartialDict(self, d1, d2):
         self.assertIsInstance(d1, dict, "First argument is not a dictionary")

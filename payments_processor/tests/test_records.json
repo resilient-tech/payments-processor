@@ -73,7 +73,9 @@
         {
             "name": "Always Non-Compliant",
             "supplier_name": "Always Non-Compliant",
-            "supplier_type": "Company"
+            "supplier_type": "Company",
+            "on_hold": 1,
+            "hold_type": "Payments"
         },
         {
             "name": "Defective Goods LLP",
@@ -130,7 +132,15 @@
         {
             "account_name": "Test Bank Account",
             "bank": "Test Bank",
-            "company": "_Test Company"
+            "company": "_Test Company",
+            "is_company_account": 1,
+            "account": "Test Company Account - _TC"
+        },
+        {
+            "account_name":"Honest Consultant",
+            "bank": "Test Bank",
+            "party_type": "Supplier",
+            "party":"Honest Consultant"
         }
     ],
     "Payments Processor Configuration": [

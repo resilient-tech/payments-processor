@@ -1,10 +1,8 @@
 from contextlib import contextmanager
 
 import frappe
-from frappe.tests import IntegrationTestCase
 
 
-@IntegrationTestCase.registerAs(staticmethod)
 @contextmanager
 def change_settings(doctype, docname, settings_dict=None, /, commit=False, **settings):
     doc = frappe.get_doc(doctype, docname)

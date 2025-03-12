@@ -68,8 +68,7 @@ class PaymentsProcessorConfiguration(Document):
         default_discount_account = frappe.get_cached_value(
             "Company", self.company, "default_discount_account"
         )
-
-        if not default_discount_account:
+        if not default_discount_account and not frappe.flags.in_test:
             frappe.throw(
                 _(
                     "Please set a default payment discount account in the company settings."

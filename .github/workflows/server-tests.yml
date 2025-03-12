@@ -9,8 +9,6 @@ on:
       app_name:
         type: string
 
-    secrets:
-      codecov_token:
 
   pull_request:
     paths-ignore:
@@ -122,26 +120,3 @@ jobs:
         with:
           name: coverage
           path: /home/runner/frappe-bench/sites/coverage.xml
-
-  coverage:
-    name: Coverage Wrap Up
-    env:
-      CODECOV_TOKEN: ${{ secrets.codecov_token || secrets.CODECOV_TOKEN }}
-    needs: tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clone
-        uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-
-      - name: Upload coverage data
-        if: github.event.repository.name == 'payments-processor' || env.CODECOV_TOKEN != ''
-        uses: codecov/codecov-action@v5
-        env:
-          CODECOV_TOKEN: ${{ env.CODECOV_TOKEN }}
-        with:
-          name: MariaDB
-          fail_ci_if_error: true
-          verbose: true
