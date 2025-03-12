@@ -46,11 +46,11 @@ def autocreate_payment_entry():
         if not setting.processing_time:
             continue
 
-        # if setting.processing_time > time_now():
-        #     continue
+        if setting.processing_time > time_now():
+            continue
 
-        # if setting.last_execution and getdate(setting.last_execution) == getdate():
-        #     continue
+        if setting.last_execution and getdate(setting.last_execution) == getdate():
+            continue
 
         # TODO: try except
         PaymentsProcessor(setting).run()
