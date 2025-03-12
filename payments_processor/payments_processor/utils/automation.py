@@ -53,7 +53,7 @@ def autocreate_payment_entry():
         #     continue
 
         # TODO: try except
-        PaymentsProcessor(setting, frappe._dict({"payment_date": "2025-03-02"})).run()
+        PaymentsProcessor(setting).run()
 
         frappe.db.set_value(
             CONFIGURATION_DOCTYPE, setting.name, "last_execution", frappe.utils.now()

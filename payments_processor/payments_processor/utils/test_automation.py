@@ -261,35 +261,52 @@ EXPECTED_ENTRY_GRP_DISABLED = [
     },
 ]
 
-INVOICES = [
+LIMIT_PAYMENT_TO_OUTSTANDING_INVOICES = [
     {
         "supplier": "Messy Books Pvt Ltd",
         "item_code": "_Test Sample Item",
         "rate": 8000.0,
         "qty": 1.0,
-    },
+    }
+]
+
+EXPECTED_LIMIT_PAYMENT_DISABLED = [
+    {
+        "company": "_Test Company",
+        "supplier": "Messy Books Pvt Ltd",
+        "outstanding_amount": 8000.0,
+        "grand_total": 8000.0,
+        "rounded_total": 8000.0,
+        "currency": "INR",
+        "is_return": 0,
+        "on_hold": 0,
+        "total_outstanding_due": 8000.0,
+        "total_discount": 0,
+        "amount_to_pay": 8000.0,
+    }
+]
+
+EXPECTED_LIMIT_PAYMENT_ENABLED = [
+    {
+        "company": "_Test Company",
+        "supplier": "Messy Books Pvt Ltd",
+        "outstanding_amount": 8000.0,
+        "grand_total": 8000.0,
+        "rounded_total": 8000.0,
+        "currency": "INR",
+        "is_return": 0,
+        "on_hold": 0,
+        "total_outstanding_due": 8000.0,
+        "total_discount": 0,
+        "amount_to_pay": 3000.0,
+    }
+]
+
+INVOICES = [
     {
         "supplier": "Complex Terms LLP",
         "item_code": "_Test Sample Item",
         "rate": 10000.0,
-        "qty": 1.0,
-    },
-    {
-        "supplier": "Honest Consultant",
-        "item_code": "_Test Sample Item",
-        "rate": 10000.0,
-        "qty": 1.0,
-    },
-    {
-        "supplier": "Honest Consultant",
-        "item_code": "_Test Sample Item",
-        "rate": 90000.0,
-        "qty": 1.0,
-    },
-    {
-        "supplier": "Honest Consultant",
-        "item_code": "_Test Sample Item",
-        "rate": 80000.0,
         "qty": 1.0,
     },
     {
@@ -300,13 +317,6 @@ INVOICES = [
     },
     {
         "supplier": "Defective Goods LLP",
-        "item_code": "_Test Sample Item",
-        "rate": 11000.0,
-        "qty": 1.0,
-    },
-    # done
-    {
-        "supplier": "Always Non-Compliant",
         "item_code": "_Test Sample Item",
         "rate": 11000.0,
         "qty": 1.0,
@@ -372,7 +382,7 @@ class TestPaymentsProcessor(FrappeTestCase):
 
     @change_settings({"group_payments_by_supplier": 1})
     def test_group_payments_by_supplier_enabled(self):
-        payment_entry = self.process_and_fetch_payment_entry()[0]
+        payment_entry = self._process_and_fetch_payment_entry()[0]
 
         self.assertPartialDict(
             EXPECTED_ENTRY_GRP_ENABLED,
@@ -381,7 +391,7 @@ class TestPaymentsProcessor(FrappeTestCase):
 
     @change_settings({"group_payments_by_supplier": 0})
     def test_group_payments_by_supplier_disabled(self):
-        payment_entries = self.process_and_fetch_payment_entry()
+        payment_entries = self._process_and_fetch_payment_entry()
 
         for index, entry in enumerate(payment_entries):
             self.assertPartialDict(
@@ -389,18 +399,16 @@ class TestPaymentsProcessor(FrappeTestCase):
                 frappe.get_doc("Payment Entry", entry).as_dict(),
             )
 
-    def process_and_fetch_payment_entry(self):
+    def _process_and_fetch_payment_entry(self):
         parties = {invoice["supplier"] for invoice in GROUP_SUPPLIER_INVOICES}
 
         make_purchase_invoices(GROUP_SUPPLIER_INVOICES)
 
         payments_processor = PaymentsProcessor(self.payment_configuration_setting)
-        invoices = payments_processor.process_invoices()
+        payments_processor.process_invoices()
         payments_processor.create_payments()
 
-        print("invoices", invoices)
-
-        a = frappe.get_all(
+        return frappe.get_all(
             "Payment Entry",
             filters={
                 "company": TEST_COMPANY,
@@ -410,8 +418,45 @@ class TestPaymentsProcessor(FrappeTestCase):
             },
             order_by="creation desc",
         )
-        print("a", a)
-        return a
+
+    @change_settings({"limit_payment_to_outstanding": 1})
+    def test_limit_payment_to_outstanding_enabled(self):
+        make_purchase_invoices(LIMIT_PAYMENT_TO_OUTSTANDING_INVOICES)
+        self._create_payment_entries()
+
+        report_data = self.get_report_data()
+
+        for index, row in enumerate(EXPECTED_LIMIT_PAYMENT_ENABLED):
+            self.assertPartialDict(row, report_data[index])
+
+    @change_settings({"limit_payment_to_outstanding": 0})
+    def test_limit_payment_to_outstanding_disabled(self):
+        make_purchase_invoices(LIMIT_PAYMENT_TO_OUTSTANDING_INVOICES)
+        self._create_payment_entries()
+
+        report_data = self.get_report_data()
+
+        for index, row in enumerate(EXPECTED_LIMIT_PAYMENT_DISABLED):
+            self.assertPartialDict(row, report_data[index])
+
+    def _create_payment_entries(self):
+        doc = frappe.new_doc("Payment Entry")
+        doc.payment_type = "Pay"
+        doc.company = "_Test Company"
+        doc.posting_date = today()
+        doc.party_type = "Supplier"
+        doc.party = "Messy Books Pvt Ltd"
+        doc.paid_from = "Test Company Account - _TC"
+        doc.paid_amount = 5000
+        doc.reference_no = "-"
+        doc.reference_date = today()
+
+        doc.setup_party_account_field()
+        doc.set_missing_values()
+        doc.set_exchange_rate()
+        doc.received_amount = doc.paid_amount / doc.target_exchange_rate
+
+        doc.save(ignore_permissions=True)
 
     def assertPartialDict(self, d1, d2):
         self.assertIsInstance(d1, dict, "First argument is not a dictionary")
