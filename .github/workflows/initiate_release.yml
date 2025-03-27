@@ -19,7 +19,7 @@ jobs:
         with:
           route: POST /repos/{owner}/{repo}/pulls
           owner: resilient-tech
-          repo: payments_processor
+          repo: payments-processor
           title: |-
             "chore: release v${{ matrix.version }}"
           body: "Automated Release."
