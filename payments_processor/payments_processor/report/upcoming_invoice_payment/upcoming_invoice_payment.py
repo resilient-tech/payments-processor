@@ -3,7 +3,6 @@
 
 import frappe
 from frappe import _
-from frappe.utils import getdate
 
 from payments_processor.constants import CONFIGURATION_DOCTYPE
 from payments_processor.payments_processor.utils.automation import PaymentsProcessor
