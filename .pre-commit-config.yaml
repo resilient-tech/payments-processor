@@ -1,21 +1,23 @@
-exclude: "node_modules|.git"
+exclude: 'node_modules|.git'
 default_stages: [commit]
 fail_fast: false
 
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.3.0
     hooks:
       - id: trailing-whitespace
-        files: "payments_processor/.*"
-        exclude: ".*txt$|.*csv|.*md"
+        files: "payments_processor.*"
+        exclude: ".*json$|.*txt$|.*csv|.*md"
       - id: check-yaml
       - id: no-commit-to-branch
-        args: ["--branch", "version-15"]
+        args: ['--branch', 'version-15']
       - id: check-merge-conflict
       - id: check-ast
       - id: check-json
       - id: check-toml
+      - id: check-yaml
       - id: debug-statements
 
   - repo: https://github.com/pre-commit/mirrors-prettier
@@ -25,27 +27,33 @@ repos:
         types_or: [javascript, vue, scss]
         # Ignore any files that might contain jinja / bundles
         exclude: |
-          (?x)^(
-              payments_processor/public/dist/.*|
-              cypress/.*|
-              .*node_modules.*|
-              .*boilerplate.*
-          )$
+            (?x)^(
+                payments_processor/public/dist/.*|
+                cypress/.*|
+                .*node_modules.*|
+                .*boilerplate.*|
+                payments_processor/public/js/controllers/.*|
+                payments_processor/templates/pages/order.js|
+                payments_processor/templates/includes/.*
+            )$
 
   - repo: https://github.com/pre-commit/mirrors-eslint
     rev: v8.44.0
     hooks:
       - id: eslint
         types_or: [javascript]
-        args: ["--quiet"]
+        args: ['--quiet']
         # Ignore any files that might contain jinja / bundles
         exclude: |
-          (?x)^(
-              payments_processor/public/dist/.*|
-              cypress/.*|
-              .*node_modules.*|
-              .*boilerplate.*
-          )$
+            (?x)^(
+                payments_processor/public/dist/.*|
+                cypress/.*|
+                .*node_modules.*|
+                .*boilerplate.*|
+                payments_processor/public/js/controllers/.*|
+                payments_processor/templates/pages/order.js|
+                payments_processor/templates/includes/.*
+            )$
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.2.0
@@ -61,6 +69,6 @@ repos:
         name: "Run ruff formatter"
 
 ci:
-  autoupdate_schedule: weekly
-  skip: []
-  submodules: false
+    autoupdate_schedule: weekly
+    skip: []
+    submodules: false

@@ -3,14 +3,18 @@ from collections import defaultdict
 from functools import cached_property
 
 import frappe
-from erpnext.accounts.report.accounts_receivable_summary.accounts_receivable_summary import (
-    AccountsReceivableSummary,
-)
+from erpnext import get_default_cost_center
 from erpnext.accounts.utils import get_balance_on
 from frappe import _
 from frappe.core.doctype.role.role import get_info_based_on_role
 from frappe.email.doctype.email_template.email_template import get_email_template
-from frappe.utils import add_days, get_timedelta, getdate, now_datetime
+from frappe.utils import (
+    add_days,
+    get_link_to_form,
+    get_timedelta,
+    getdate,
+    now_datetime,
+)
 from pypika import Order
 
 from payments_processor.constants import CONFIGURATION_DOCTYPE
@@ -36,6 +40,9 @@ def autocreate_payment_entry():
     auto_pay_settings = frappe.get_all(CONFIGURATION_DOCTYPE, "*", {"disabled": 0})
 
     for setting in auto_pay_settings:
+        if not setting.auto_generate_entries:
+            return
+
         if not setting.processing_time:
             continue
 
@@ -45,6 +52,7 @@ def autocreate_payment_entry():
         if setting.last_execution and getdate(setting.last_execution) == getdate():
             continue
 
+        # TODO: try except
         PaymentsProcessor(setting).run()
 
         frappe.db.set_value(
@@ -58,6 +66,9 @@ def time_now():
 
 class PaymentsProcessor:
     def __init__(self, setting, filters=None):
+        if isinstance(setting, str):
+            setting = frappe.get_doc(CONFIGURATION_DOCTYPE, setting)
+
         self.setting = setting
         self.filters = filters or frappe._dict()
 
@@ -128,8 +139,7 @@ class PaymentsProcessor:
                 if self.setting.group_payments_by_supplier:
                     return [invoice_group]
 
-                for invoice in invoice_group:
-                    yield [invoice]
+                return [[invoice] for invoice in invoice_group]
 
             def update_payment_info(invoice_group, pe):
                 for invoice in invoice_group:
@@ -154,7 +164,9 @@ class PaymentsProcessor:
                 except Exception:
                     self.handle_pe_creation_failed(supplier_name)
                     frappe.log_error(
-                        title=f"Error saving automated payment entry for supplier {supplier_name}",
+                        title=_(
+                            "Error saving automated payment entry for supplier {0})"
+                        ).format(supplier_name),
                         message=frappe.get_traceback(),
                     )
 
@@ -204,45 +216,53 @@ class PaymentsProcessor:
             ...
         }
         """
-        doc = frappe.qb.DocType("Purchase Invoice")
-        terms = frappe.qb.DocType("Payment Schedule")
+
+        PI = frappe.qb.DocType("Purchase Invoice")
+        PI_TERMS = frappe.qb.DocType("Payment Schedule")
+
         invoices = (
-            frappe.qb.from_(doc)
-            .join(terms)
-            .on((doc.name == terms.parent) & (terms.parenttype == "Purchase Invoice"))
-            .select(
-                doc.name,
-                doc.company,
-                doc.supplier,
-                doc.outstanding_amount,
-                doc.grand_total,
-                doc.rounded_total,
-                doc.currency,
-                doc.contact_person,
-                doc.bill_no,
-                doc.is_return,
-                doc.on_hold,
-                doc.hold_comment,
-                doc.release_date,
-                terms.due_date.as_("term_due_date"),
-                terms.outstanding.as_("term_outstanding_amount"),
-                terms.discount_date.as_("term_discount_date"),
-                terms.discount_type.as_("term_discount_type"),
-                terms.discount.as_("term_discount"),
+            frappe.qb.from_(PI)
+            .join(PI_TERMS)
+            .on(
+                (PI.name == PI_TERMS.parent)
+                & (PI_TERMS.parenttype == "Purchase Invoice")
             )
-            .where(doc.docstatus == 1)
-            .where(doc.outstanding_amount != 0)
-            .where(doc.company == self.setting.company)
+            .select(
+                PI.name,
+                PI.company,
+                PI.supplier,
+                PI.outstanding_amount,
+                PI.grand_total,
+                PI.rounded_total,
+                PI.currency,
+                PI.contact_person,
+                PI.bill_no,
+                PI.is_return,
+                PI.on_hold,
+                PI.hold_comment,
+                PI.release_date,
+                PI.cost_center,
+                PI_TERMS.due_date.as_("term_due_date"),
+                PI_TERMS.outstanding.as_("term_outstanding_amount"),
+                PI_TERMS.discount_date.as_("term_discount_date"),
+                PI_TERMS.discount_type.as_("term_discount_type"),
+                PI_TERMS.discount.as_("term_discount"),
+            )
+            .where(PI.docstatus == 1)
+            .where(PI.outstanding_amount != 0)
+            .where(PI.company == self.setting.company)
             .where(  # invoice is due
-                (doc.is_return == 1)  # immediately claim refund for returns
-                | ((doc.is_return == 0) & (terms.due_date < self.offset_due_date))
+                (PI.is_return == 1)  # immediately claim refund for returns
+                | ((PI.is_return == 0) & (PI_TERMS.due_date <= self.offset_due_date))
                 | (
-                    (doc.is_return == 0)
-                    & (terms.discount_date.notnull())
-                    & (terms.discount_date < self.next_payment_date)
+                    (PI.is_return == 0)
+                    & (PI_TERMS.discount_date.notnull())
+                    & (
+                        PI_TERMS.discount_date >= self.next_payment_date
+                    )  # TODO: -ve offset
                 )
             )
-            .orderby(terms.due_date, order=Order.asc)
+            .orderby(PI_TERMS.due_date, order=Order.asc)
             .run(as_dict=True)
         )
 
@@ -285,28 +305,37 @@ class PaymentsProcessor:
                     0, term_outstanding + updated.total_outstanding_due
                 )
 
+            # TODO: enhance and check accuracy
+            if not payment_term.outstanding_amount:
+                self.invoices.pop(row.name)
+                continue
+
             self.apply_discount(payment_term)
 
             updated.due_date = payment_term.due_date
+            updated.payment_date = row.payment_date
             updated.total_outstanding_due += term_outstanding
             updated.total_discount += payment_term.discount_amount
             updated.setdefault("payment_terms", []).append(payment_term)
 
     def get_suppliers(self):
-        suppliers = frappe.get_all(
-            "Supplier",
-            filters={"name": ("in", [row.supplier for row in self.invoices.values()])},
-            fields=(
-                "name",
-                "disabled",
-                "on_hold",
-                "hold_type",
-                "release_date",
-                "disable_auto_generate_payment_entry",
-            ),
-        )
-
-        self.suppliers = {supplier.name: supplier for supplier in suppliers}
+        self.suppliers = {
+            supplier.name: supplier
+            for supplier in frappe.get_all(
+                "Supplier",
+                filters={
+                    "name": ("in", [row.supplier for row in self.invoices.values()])
+                },
+                fields=(
+                    "name",
+                    "disabled",
+                    "on_hold",
+                    "hold_type",
+                    "release_date",
+                    "disable_auto_generate_payment_entry",
+                ),
+            )
+        }
 
     def update_supplier_outstanding(self):
         if not self.setting.limit_payment_to_outstanding:
@@ -339,7 +368,9 @@ class PaymentsProcessor:
                 company=self.setting.company,
             )
 
-            supplier.remaining_balance = outstanding * -1 - pe_map.get(supplier.name, 0)
+            supplier.remaining_balance = (outstanding * -1) - pe_map.get(
+                supplier.name, 0
+            )
 
     def process_auto_generate(self):
         if not self.setting.auto_generate_entries:
@@ -353,6 +384,9 @@ class PaymentsProcessor:
 
         for invoice in self.invoices.values():
             supplier = self.suppliers.get(invoice.supplier)
+            invoice.amount_to_pay = (
+                invoice.total_outstanding_due - invoice.total_discount
+            )
 
             # supplier validations
             if not supplier:
@@ -388,6 +422,7 @@ class PaymentsProcessor:
             ):
                 invalid.setdefault(invoice.supplier, []).append({**invoice, **msg})
                 continue
+            # frappe.log(invoice.amount_to_pay)
 
             # invoice validations
             if msg := self.is_invoice_blocked(invoice):
@@ -410,19 +445,6 @@ class PaymentsProcessor:
                 invoice.auto_generate = 1
                 valid.setdefault(invoice.supplier, []).append(invoice)
 
-        if not self.setting.group_payments_by_supplier:
-            return
-
-        # Grouped PE
-        for supplier_name, paid_amount in self.supplier_paid_amount.items():
-            supplier = self.suppliers[supplier_name]
-
-            if msg := self.is_auto_generate_threshold_exceeded(paid_amount):
-                for invoice in valid.pop(supplier_name):
-                    invoice.update({**msg, "auto_generate": 0})
-
-                invalid.setdefault(supplier_name, []).extend(valid.pop(supplier_name))
-
     def process_auto_submit(self):
         if not self.setting.auto_submit_entries:
             return
@@ -438,8 +460,7 @@ class PaymentsProcessor:
                     invoice.update(msg)
                     continue
 
-                functions = frappe.get_hooks("filter_auto_submit_payments")
-                for fn in functions:
+                for fn in frappe.get_hooks("filter_auto_submit_payments"):
                     if msg := frappe.call(fn, supplier=supplier, invoice=invoice):
                         invoice.update(msg)
                         break
@@ -458,6 +479,13 @@ class PaymentsProcessor:
                     invoice.update({**msg, "auto_submit": 0})
 
     def create_payment_entry(self, supplier_name, invoice_list):
+        if not self.paid_from:
+            frappe.throw(
+                _("Please set Company Account in Bank Account: {0}").format(
+                    get_link_to_form("Bank Account", self.setting.bank_account)
+                )
+            )
+
         pe = frappe.new_doc("Payment Entry")
 
         paid_amount = 0
@@ -505,14 +533,19 @@ class PaymentsProcessor:
             return pe
 
         if not self.discount_account:
-            frappe.throw("Default discount account is not set in Company")
+            frappe.throw(_("Default discount account is not set in Company"))
+
+        default_cost_center = get_default_cost_center(self.setting.company)
+
+        if not default_cost_center:
+            frappe.throw(_("Default Cost Center is not set in Company"))
 
         pe.append(
             "deductions",
             {
                 "account": self.discount_account,
-                "cost_center": invoice.cost_center,  # TODO: could be different for each invoice
-                "amount": total_discount,
+                "cost_center": default_cost_center,  # TODO: could be different for each invoice (for now we are using Default Cost Center as specified in Company)
+                "amount": -total_discount,
             },
         )
 
@@ -525,13 +558,15 @@ class PaymentsProcessor:
             invoice.payment_date = self.today
             return True
 
-        if self.is_discount_applicable(invoice.term_discount_date):
+        if invoice.term_discount and self.is_discount_applicable(
+            invoice.term_discount_date
+        ):
             invoice.payment_date = self.get_previous_payment_date(
                 invoice.term_discount_date
             )
             return True
 
-        if invoice.term_due_date and invoice.term_due_date < self.offset_due_date:
+        if invoice.term_due_date and invoice.term_due_date <= self.offset_due_date:
             invoice.payment_date = self.get_previous_payment_date(invoice.term_due_date)
             return True
 
@@ -559,7 +594,7 @@ class PaymentsProcessor:
         if not supplier.on_hold:
             return False
 
-        if supplier.hold_type not in ["All", "Payments"]:
+        if supplier.hold_type not in {"All", "Payments"}:
             return False
 
         if supplier.release_date and supplier.release_date > self.today:
@@ -575,9 +610,6 @@ class PaymentsProcessor:
 
     def is_payment_exceeding_supplier_outstanding(self, supplier, invoice):
         if not self.setting.limit_payment_to_outstanding:
-            invoice.amount_to_pay = (
-                invoice.total_outstanding_due - invoice.total_discount
-            )
             return
 
         if amount_to_pay := min(
@@ -602,7 +634,7 @@ class PaymentsProcessor:
         if not invoice.on_hold:
             return False
 
-        if invoice.release_date and invoice.release_date > self.today:
+        if invoice.release_date and invoice.release_date < self.today:
             return False
 
         return self.get_error_msg("2001")
@@ -670,7 +702,7 @@ class PaymentsProcessor:
         return (
             self.setting.claim_early_payment_discount
             and discount_date
-            and discount_date < self.next_payment_date
+            and self.next_payment_date <= discount_date
         )
 
     def get_next_payment_date(self):
@@ -679,7 +711,7 @@ class PaymentsProcessor:
 
         today_index = DAY_NAMES.index(self.today.strftime("%A"))
 
-        for i in range(1, 8):
+        for i in range(0, 7):
             next_day = DAY_NAMES[(today_index + i) % 7]
             if next_day in self.automation_days:
                 return add_days(self.today, i)
@@ -687,7 +719,7 @@ class PaymentsProcessor:
     def get_previous_payment_date(self, due_date):
         due_date_index = DAY_NAMES.index(due_date.strftime("%A"))
 
-        for i in range(1, 8):
+        for i in range(0, 7):
             previous_day = DAY_NAMES[(due_date_index - i) % 7]
             if previous_day in self.automation_days:
                 # subject to max of today

@@ -1,3 +1,5 @@
+# TODO: only share the sections available.
+# TODO: error with Fmt Money in dev
 EMAIL_TEMPLATES = [
     {
         "name": "Auto Payment Email",

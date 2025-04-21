@@ -270,6 +270,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "depends_on": "eval: doc.auto_generate_entries",
    "description": "Email notification will be sent to all users with this role",
    "fieldname": "email_to",
    "fieldtype": "Link",
@@ -277,6 +278,7 @@
    "options": "Role"
   },
   {
+   "depends_on": "eval: doc.auto_generate_entries",
    "description": "Time during the day when processing should be done",
    "fieldname": "processing_time",
    "fieldtype": "Time",
@@ -291,6 +293,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "depends_on": "eval: doc.auto_generate_entries",
    "fieldname": "last_execution",
    "fieldtype": "Datetime",
    "label": "Last Execution",
@@ -299,7 +302,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-01 10:44:27.963980",
+ "modified": "2025-03-02 08:40:59.207141",
  "modified_by": "Administrator",
  "module": "Payments Processor",
  "name": "Payments Processor Configuration",

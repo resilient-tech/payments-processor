@@ -1,0 +1,164 @@
+{
+    "Company": [
+        {
+            "abbr": "_TC",
+            "company_name": "_Test Company",
+            "country": "India",
+            "default_currency": "INR",
+            "doctype": "Company",
+            "domain": "Manufacturing",
+            "chart_of_accounts": "Standard",
+            "enable_perpetual_inventory": 0
+        }
+    ],
+    "Item": [
+        {
+            "description": "_Test Sample Item",
+            "doctype": "Item",
+            "is_stock_item": 1,
+            "item_code": "_Test Sample Item",
+            "item_name": "_Test Sample Item",
+            "item_group": "All Item Groups",
+            "valuation_rate": 100,
+            "stock_uom": "Nos",
+            "uoms": [
+                {
+                    "conversion_factor": 1,
+                    "uom": "Nos",
+                    "name": "_Test Sample Item"
+                }
+            ],
+            "item_defaults": [
+                {
+                    "name": "_Test Sample Item",
+                    "company": "_Test Company",
+                    "default_warehouse": "Stores - _TC",
+                    "expense_account": "Cost of Goods Sold - _TC",
+                    "buying_cost_center": "Main - _TC",
+                    "selling_cost_center": "Main - _TC",
+                    "income_account": "Sales - _TC"
+                }
+            ]
+        }
+    ],
+    "Payment Term": [
+        {
+            "payment_term_name": "Test 1P Discount",
+            "invoice_portion": 100.0,
+            "due_date_based_on": "Day(s) after invoice date",
+            "credit_days": 30,
+            "discount_type": "Percentage",
+            "discount_validity_based_on": "Day(s) after invoice date",
+            "discount": 5.0,
+            "discount_validity": 7
+        }
+    ],
+    "Payment Terms Template": [
+        {
+            "template_name": "Test Payment Term Template",
+            "terms": [
+                {
+                    "payment_term": "Test 1P Discount",
+                    "invoice_portion": 100.0
+                }
+            ]
+        }
+    ],
+    "Supplier": [
+        {
+            "name": "Common Party Pvt Ltd",
+            "supplier_name": "Common Party Pvt Ltd",
+            "supplier_type": "Company"
+        },
+        {
+            "name": "Always Non-Compliant",
+            "supplier_name": "Always Non-Compliant",
+            "supplier_type": "Company",
+            "on_hold": 1,
+            "hold_type": "Payments"
+        },
+        {
+            "name": "Defective Goods LLP",
+            "supplier_name": "Defective Goods LLP",
+            "supplier_type": "Company"
+        },
+        {
+            "name": "Eco Stationery",
+            "supplier_name": "Eco Stationery",
+            "supplier_type": "Company"
+        },
+        {
+            "name": "Honest Consultant",
+            "supplier_name": "Honest Consultant",
+            "supplier_type": "Company"
+        },
+        {
+            "name": "Needs Quick Money Ltd",
+            "supplier_name": "Needs Quick Money Ltd",
+            "supplier_type": "Company",
+            "payment_terms": "Test Payment Term Template"
+        },
+        {
+            "name": "Complex Terms LLP",
+            "supplier_name": "Complex Terms LLP",
+            "supplier_type": "Company"
+        },
+        {
+            "name": "Messy Books Pvt Ltd",
+            "supplier_name": "Messy Books Pvt Ltd",
+            "supplier_type": "Company"
+        },
+        {
+            "name": "Disallowed Supplier",
+            "supplier_name": "Disallowed Supplier",
+            "supplier_type": "Company"
+        }
+    ],
+    "Account": [
+        {
+            "account_name": "Test Account",
+            "parent_account": "Bank Accounts - _TC",
+            "company": "_Test Company"
+        },
+        {
+            "account_name": "Test Company Account",
+            "parent_account": "Accounts Payable - _TC",
+            "company": "_Test Company",
+            "is_group": 0,
+            "account_type": "Bank"
+        }
+    ],
+    "Bank": [
+        {
+            "bank_name": "Test Bank"
+        }
+    ],
+    "Bank Account": [
+        {
+            "account_name": "Test Bank Account",
+            "bank": "Test Bank",
+            "company": "_Test Company",
+            "is_company_account": 1,
+            "account": "Test Company Account - _TC"
+        },
+        {
+            "account_name": "Honest Consultant",
+            "bank": "Test Bank",
+            "party_type": "Supplier",
+            "party": "Honest Consultant"
+        }
+    ],
+    "Payments Processor Configuration": [
+        {
+            "bank_account": "Test Bank Account - Test Bank",
+            "company": "_Test Company",
+            "automate_on_monday": 1,
+            "automate_on_tuesday": 1,
+            "automate_on_wednesday": 1,
+            "automate_on_thursday": 1,
+            "automate_on_friday": 1,
+            "automate_on_saturday": 1,
+            "automate_on_sunday": 1
+        }
+    ]
+}
