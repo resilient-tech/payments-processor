@@ -1,5 +1,10 @@
 ## Payment Entry Automation Setup
 
+### Roles and Permissions
+
+- Users must have the `Auto Payments Manager` role to access **Payments Processor Configuration**.
+  - Note: This role only allows configuration access/modification, not payouts.
+
 ![payments_processor_configuration](https://github.com/user-attachments/assets/a0317608-af5e-4f83-ba72-8d682ffa6e27)
 
 1. **Open Payments Processor Configuration**  
